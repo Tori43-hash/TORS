@@ -25,6 +25,8 @@
 - **Принятые решения** (§20): оплата — только Telegram Stars; у пользователя может быть несколько подписок;
   внутренний баланс и админка — необязательные модули; тарифы — в конфиге; языки — ru (по умолчанию) и en;
   импорт пользователей из панели не нужен; Mini App планируется; запускается одна копия бота.
+- **Стек** (§21, версии сверены на 28.09.2026): Go 1.27, PostgreSQL 18, pgx + sqlc + goose, River, telego (Bot API 10.3),
+  OpenTelemetry; Mini App — TypeScript + React + Vite + tma.js. **Границы расширяемости** — §22.
 
 ---
 
@@ -60,7 +62,7 @@
 | `Provisioner` / `Validator` / `CleanerUpper` | те же | Опциональные интерфейсы жизненного цикла |
 | `caddy.App` (`Start/Stop`) | `tors.App` (`Start/Stop`) | Модули верхнего уровня |
 | `ctx.LoadModule(s, "Field")` + тег `caddy:"namespace=… inline_key=…"` | `ctx.LoadModule(s, "Field")` + тег `tors:"namespace=… inline_key=…"` | Хост грузит гостей из своего JSON |
-| `ctx.App("tls")` — ленивая загрузка и связывание | `ctx.App("panels")` + `tors.AppAs[*panels.App](ctx, "panels")` | + generics для типобезопасности |
+| `ctx.App("tls")` — ленивая загрузка и связывание | `ctx.App("panels")` + `tors.AppAs[panels.Service](ctx, "panels")` | + generics; зависимость от интерфейса, а не от типа — модуль можно заменить |
 | Нативный JSON + адаптеры (Caddyfile) | Нативный JSON + адаптер YAML | |
 | `{env.X}` плейсхолдеры | `{env.X}`, `{file./path}` | Секреты не в конфиге |
 | xcaddy (кастомные сборки) | свой `main.go` с импортами → позже `xtors` | |
@@ -189,28 +191,28 @@ type Context struct {
 }
 
 func (ctx Context) LoadModule(structPtr any, field string) (any, error)
-func (ctx Context) LoadModuleByID(id string, raw json.RawMessage) (any, error)
+func (ctx Context) LoadModuleByID(id string, raw jsontext.Value) (any, error)
 func (ctx Context) App(name string) (any, error)             // ленивый Provision + детект циклов
 func (ctx Context) AppIfConfigured(name string) (any, error) // (nil, nil), если приложения нет в конфиге
 func (ctx Context) Logger() *slog.Logger                      // уже с полем module=<id>
 func (ctx Context) Events() *Events
 func (ctx Context) OnCancel(f func())
 
-func AppAs[T any](ctx Context, name string) (T, error)       // типобезопасная обёртка над App
+func AppAs[T any](ctx Context, name string) (T, error)       // типобезопасная обёртка; T — интерфейс-контракт (panels.Service)
 ```
 
 Хост описывает поле с гостями тегом, ядро по типу поля выбирает форму загрузки:
 
 | Тип поля | Смысл | JSON |
 |---|---|---|
-| `json.RawMessage` + `inline_key` | один модуль | `"transport": {"transport": "polling"}` |
-| `[]json.RawMessage` + `inline_key` | упорядоченный список | `"middleware": [{"middleware": "recover"}, …]` |
-| `map[string]json.RawMessage` + `inline_key` | именованные экземпляры | `"providers": {"rw-main": {"provider": "remnawave", …}}` |
+| `jsontext.Value` + `inline_key` | один модуль | `"transport": {"transport": "polling"}` |
+| `[]jsontext.Value` + `inline_key` | упорядоченный список | `"middleware": [{"middleware": "recover"}, …]` |
+| `map[string]jsontext.Value` + `inline_key` | именованные экземпляры | `"providers": {"rw-main": {"provider": "remnawave", …}}` |
 | `tors.ModuleMap` (без `inline_key`) | ключ = имя модуля | `"apps": {"telegram": {…}}` |
 
 ```go
 type App struct {
-	ProvidersRaw map[string]json.RawMessage `json:"providers" tors:"namespace=panels.providers inline_key=provider"`
+	ProvidersRaw map[string]jsontext.Value `json:"providers" tors:"namespace=panels.providers inline_key=provider"`
 	providers    map[string]Provider
 }
 
@@ -228,11 +230,15 @@ func (a *App) Provision(ctx tors.Context) error {
 
 ### 3.5. Конфигурация
 
-- **Нативный формат — JSON** (строгий, его и разбирают модули). Человекочитаемый формат — **YAML через адаптер**
+- **Нативный формат — JSON** (строгий, его и разбирают модули). Разбор — `encoding/json/v2` из stdlib
+  (в Go 1.27 включён по умолчанию): неизвестное поле в конфиге — ошибка старта, а не молчаливо проигнорированная опечатка;
+  «сырой» JSON гостевых модулей — `jsontext.Value`. Человекочитаемый формат — **YAML через адаптер**
   (`config.adapters.yaml`, отдельный модуль). `tors adapt` показывает итоговый JSON.
 - **Плейсхолдеры** `{env.BOT_TOKEN}`, `{file./run/secrets/rw_token}` подставляются ядром в строковые значения
   до разбора — секреты не хранятся в конфиге.
 - **Общие типы** в ядре: `tors.Duration` (понимает `30d`, `12h`), `tors.Size` (`100GiB`).
+- **JSON Schema**: каждый модуль описывает схему своего конфига (генерируется из структуры); `tors schema`
+  собирает общую схему — редактор подсказывает поля и ловит ошибки в YAML ещё до запуска.
 - **Разделение**: статический конфиг (инфраструктура, токены, какие модули включены, тарифы на старте) —
   файл; оперативные данные (пользователи, заказы, промокоды, позже — тарифы из админки) — БД модулей.
 
@@ -262,7 +268,7 @@ func Emit(ctx context.Context, bus *Events, e Event) error
 
 ### 3.7. CLI
 
-`tors run | validate | adapt | list-modules [--namespace …] | version | reload (фаза 9)`.
+`tors run | validate | adapt | schema | list-modules [--namespace …] | version | reload (фаза 9)`.
 Модули могут регистрировать свои подкоманды (`cmd.RegisterCommand`): `tors db migrate`,
 `tors panels ping`, `tors catalog check` (проверить тарифы и их размещение на панелях).
 `tors version` печатает версии всех вкомпилированных модулей из `debug.ReadBuildInfo`.
@@ -327,7 +333,7 @@ flowchart TB
 | `kv` + `kv.stores.*` | инфра | Хранилище «ключ → значение» для короткоживущих данных: шаг диалога, лимиты, токены кнопок (см. §6.3) |
 | `http` | инфра | Общий HTTP-сервер: вебхуки Telegram и панелей, Mini App, `/healthz`, `/readyz`, `/metrics` |
 | `i18n` | инфра | Переводы, переопределение текстов из конфига/каталога |
-| `metrics` | инфра | Prometheus-реестр для модулей |
+| `metrics` | инфра | Метрики и трейсы на OpenTelemetry, `/metrics` для Prometheus |
 | `users` | домен | Пользователи и их идентичности (telegram, позже web), язык, блокировки |
 | `catalog` + `catalog.sources.*` | домен | Тарифы (из конфига, позже из БД) |
 | `panels` + `panels.providers.*` | домен | Контракт панелей, реестр экземпляров, нормализованные события, опрос |
@@ -345,7 +351,7 @@ flowchart TB
 
 | Способ | Когда | Пример |
 |---|---|---|
-| **Сервис приложения** — `tors.AppAs[*billing.App](ctx, "billing")` и вызов метода | Нужен ответ/результат прямо сейчас, связь «использует» | `shop` вызывает `billing.CreateOrder` |
+| **Сервис приложения** — `tors.AppAs[billing.Service](ctx, "billing")` и вызов метода | Нужен ответ/результат прямо сейчас, связь «использует» | `shop` вызывает `billing.CreateOrder` |
 | **Гостевой модуль** — хост грузит из своего конфига | Точка расширения с порядком/конфигом, выбираемая пользователем | `billing.pricing.promo`, `telegram.middleware.ratelimit` |
 | **Событие** — `Emit` / durable через `jobs` | Реакция на факт, эмиттер не должен знать о подписчиках | `billing.order.paid` → `subscriptions`, `referral`, `notifications` |
 
@@ -358,6 +364,8 @@ flowchart TB
 5. Гость импортирует пакет своего хоста (контракт) + свой SDK; с остальным — через `Context` и события.
 6. UI-модули (`telegram.handlers.*`) импортируют домен; домен про UI не знает.
 7. Межмодульные внешние ключи в БД — только на `users`; прочие ссылки — ID без FK.
+8. Зависимость от другого приложения — только через его интерфейс-контракт (`billing.Service`), не через конкретный тип:
+   тогда любой стандартный модуль можно заменить своей реализацией (§22).
 
 ---
 
@@ -365,7 +373,7 @@ flowchart TB
 
 ```
 tors/
-├── go.mod                       # module github.com/tori43-hash/tors  (Go 1.24+)
+├── go.mod                       # module github.com/tori43-hash/tors  (go 1.27)
 ├── tors.go                      # Run / Stop / Reload
 ├── modules.go                   # ModuleID, ModuleInfo, реестр
 ├── lifecycle.go                 # Provisioner, Validator, CleanerUpper, App, HealthChecker
@@ -475,7 +483,8 @@ KV (key-value) — хранилище «ключ → значение» со с�
 Язык пользователя — из `language_code`, с возможностью смены (`telegram.handlers.language`).
 
 ### 6.6. `metrics`
-Prometheus-реестр; модули получают его через `ctx.AppIfConfigured("metrics")` — метрики не обязательны.
+OpenTelemetry (метрики и трейсы) с Prometheus-экспортером на `/metrics`, OTLP — опционально.
+Модули получают его через `ctx.AppIfConfigured("metrics")` — метрики не обязательны.
 
 ---
 
@@ -485,7 +494,8 @@ Prometheus-реестр; модули получают его через `ctx.Ap
 
 ### 7.1. Чем панели отличаются
 
-> Детали API сверить с актуальными версиями при реализации (Remnawave активно развивается, у 3x-UI много версий/форков).
+> Целевая версия — Remnawave 3.x (контракт `@remnawave/backend-contract` 3.4.x на сентябрь 2026). Детали API сверить при реализации:
+> Remnawave активно развивается, у 3x-UI много версий и форков.
 
 | Аспект | Remnawave | 3x-UI | Решение в контракте |
 |---|---|---|---|
@@ -494,7 +504,7 @@ Prometheus-реестр; модули получают его через `ctx.Ap
 | Доступ к серверам | Internal Squads | Список inbound ID | `Placement` — непрозрачный JSON, валидирует провайдер |
 | Уникальный ключ | `username` (+ uuid/shortUuid) | `email` (уникален в панели) | Детерминированный ключ из нашего ID → идемпотентность |
 | Срок | `expireAt` | `expiryTime` (мс) | `ExpiresAt time.Time` |
-| Трафик | `trafficLimitBytes` + стратегия сброса (NO_RESET/DAY/WEEK/MONTH) | `totalGB` на клиента **в каждом inbound**, `reset` | `TrafficLimit{Bytes, Reset}`; для 3x-UI режим `shared` — общий лимит контролирует бот |
+| Трафик | `trafficLimitBytes` + стратегия сброса (NO_RESET/DAY/WEEK/MONTH/MONTH_ROLLING) | `totalGB` на клиента **в каждом inbound**, `reset` | `TrafficLimit{Bytes, Reset}`; для 3x-UI режим `shared` — общий лимит контролирует бот |
 | Устройства | `hwidDeviceLimit` (HWID) | `limitIp` (одновременные IP) | `DeviceLimit` + флаг возможности; семантика в `Info` |
 | Ссылка подписки | `subscriptionUrl` в ответе API | `subId` + внешний адрес sub-сервиса (в конфиге провайдера) | `Account.SubscriptionURL` |
 | Аутентификация | Bearer API-токен | Логин/пароль → cookie-сессия, web base path | Внутреннее дело провайдера |
@@ -509,7 +519,7 @@ package panels
 // Provider — подключение к одному экземпляру панели (гостевой модуль panels.providers.*).
 type Provider interface {
 	Info(ctx context.Context) (Info, error)          // тип, версия панели, возможности
-	ValidatePlacement(raw json.RawMessage) error     // проверка сквадов/inbounds тарифа на старте
+	ValidatePlacement(raw jsontext.Value) error     // проверка сквадов/inbounds тарифа на старте
 
 	// EnsureAccount декларативно и идемпотентно приводит аккаунт в панели к spec:
 	// ищет по spec.Key (детерминированный username/email), создаёт или обновляет.
@@ -523,9 +533,9 @@ type AccountSpec struct {
 	TelegramID  int64
 	Enabled     bool
 	ExpiresAt   time.Time
-	Traffic     TrafficLimit    // Bytes=0 — безлимит; Reset: none|day|week|month
+	Traffic     TrafficLimit    // Bytes=0 — безлимит; Reset: none|day|week|month|month_rolling
 	DeviceLimit int             // 0 — без ограничения
-	Placement   json.RawMessage // сквады / inbounds — понимает только провайдер
+	Placement   jsontext.Value // сквады / inbounds — понимает только провайдер
 	Note        string
 }
 
@@ -535,7 +545,7 @@ type Account struct {
 	ExpiresAt       time.Time
 	UsedTraffic     int64
 	SubscriptionURL string
-	Raw             json.RawMessage // исходный ответ — для админки/отладки
+	Raw             jsontext.Value // исходный ответ — для админки/отладки
 }
 
 // Опциональные возможности: проверяются type assertion, UI скрывает недоступное.
@@ -546,7 +556,7 @@ type DeviceManager     interface {
 	RemoveDevice(ctx context.Context, ref AccountRef, id string) error
 }
 type TargetLister  interface{ ListTargets(ctx context.Context) ([]Target, error) }                     // сквады / inbounds
-type AccountLister interface{ ListAccounts(ctx context.Context, p Page) ([]Account, Page, error) } // сверка, опрос
+type AccountLister interface{ Accounts(ctx context.Context) iter.Seq2[Account, error] }          // сверка, опрос; пагинация внутри итератора
 ```
 
 Почему `EnsureAccount`, а не `Create/Update`: вызов безопасно повторять (ретраи задач, сверка), нет ветвления
@@ -577,7 +587,9 @@ placements:
 Подписчики (уведомления, подписки) не знают, откуда событие.
 
 ### 7.5. `panels.providers.remnawave`
-- Клиент: генерация из OpenAPI-спеки панели (`ogen`/`oapi-codegen`) или актуальный Go SDK, **обёрнутые** в провайдер (anti-corruption layer) — изменения API панели не протекают в домен.
+- Клиент: генерация `ogen` из OpenAPI-спеки панели, **обёрнутая** в провайдер (anti-corruption layer) — изменения API панели не протекают в домен.
+- Вебхуки панели (`user.expired`, `user.limited`, `user.first_connected`, `user.not_connected`, `user.bandwidth_usage_threshold_reached`, …)
+  переводятся в нормализованные события §7.4.
 - При `Provision` — запрос версии панели, предупреждение/ошибка, если версия вне матрицы поддержки.
 - Конфиг: `url`, `token`, `headers` (для панели за reverse-proxy), `webhook: {path, secret}`, `username_template`, `timeout`.
 - Возможности: все (`TrafficResetter`, `CredentialRevoker`, `DeviceManager` (HWID), `TargetLister`, `AccountLister`), push-события.
@@ -749,6 +761,8 @@ sequenceDiagram
 
 | Событие | Публикует | Durable | Подписчики |
 |---|---|---|---|
+| `billing.order.creating` | billing | нет, синхронное «before» | антифрод, лимиты — могут отменить заказ через `ErrAbort` |
+| `subscriptions.granting` | subscriptions | нет, синхронное «before» | ограничения выдачи — могут отменить через `ErrAbort` |
 | `users.registered` | users | да | referral, notifications (админу) |
 | `users.bot_blocked` | telegram | нет | users |
 | `billing.order.paid` | billing | да | subscriptions, wallet, referral, notifications |
@@ -815,7 +829,7 @@ Mini App — вторая «витрина» над тем же доменом, 
   (`subscriptions/webui`, `referral/webui`, …). Вызывают те же сервисы `catalog`, `billing`, `subscriptions`, что и хендлеры бота.
 - Оплата: шлюз Stars возвращает тот же `TelegramInvoice`, `webapp` превращает его в ссылку `createInvoiceLink`
   для `Telegram.WebApp.openInvoice`. Подтверждение приходит обычным `successful_payment` — поток после оплаты тот же.
-- Выбор фронтенд-стека — отдельное решение, Go-части он не касается.
+- Фронтенд — отдельный проект (стек в §21), Go-части он не касается.
 
 ---
 
@@ -1039,8 +1053,10 @@ func main() { torscmd.Main() }
 - **Контрактные сьюты**: `panelstest` (fake, Remnawave, 3x-UI), `billingtest` (fake, Stars — в тестовом окружении Telegram).
 - **Интеграционные**: testcontainers — Postgres (миграции, River), Remnawave и 3x-UI в docker для провайдеров (отдельный job CI).
 - **Telegram**: хендлеры тестируются с фейковым `Sender` и сгенерированными апдейтами.
+- **Время**: напоминания, истечение заказов и подписок, TTL в `kv` — тестируются через `testing/synctest` (виртуальные часы, без реального ожидания).
 - **E2E-сценарий**: конфиг с `fake` провайдером и `fake` шлюзом — «покупка → выдача → продление → истечение» без внешних сервисов.
-- CI: `golangci-lint` (включая `depguard` с правилами §4.4), `go test -race`, проверка «ядро = только stdlib».
+- CI: `golangci-lint` v2 (включая `depguard` с правилами §4.4), `go test -race`, `govulncheck`, проверка «ядро = только stdlib»,
+  `apidiff` для пакетов-контрактов (ломающее изменение API без мажорной версии — красный CI).
 
 ---
 
@@ -1087,6 +1103,8 @@ func main() { torscmd.Main() }
 | Зоопарк версий и форков 3x-UI | Capability-флаги, матрица совместимости, тесты на конкретных образах |
 | Единственный способ оплаты — Stars (комиссия, вывод через Fragment, не всем пользователям удобно) | Новый шлюз — отдельный модуль; домен и UI не меняются (`RedirectURL` уже в контракте) |
 | Двойная выдача / потерянная оплата | Уникальные ключи в БД, транзакционный outbox, идемпотентные обработчики, E2E-тесты на повторы |
+| River ещё в версии 0.x (API может меняться) | Скрыт за модулем `jobs`: обновление или замена затрагивает один модуль |
+| Ломающие изменения контрактов для сторонних модулей | Semver для пакетов-контрактов, `apidiff` в CI, deprecation перед удалением |
 | Сложность hot reload | Правила жизненного цикла соблюдаются с фазы 1, сама перезагрузка — в фазе 9 |
 
 ## 20. Решения и открытые вопросы
@@ -1111,3 +1129,84 @@ func main() { torscmd.Main() }
 2. Нужно ли автопродление? Bot API умеет подписки Stars с автосписанием, но только с периодом 30 дней.
    Решение не блокирует MVP: это возможность шлюза `telegram_stars`, её можно добавить позже.
 3. Реферальная награда по умолчанию: бонусные дни или звёзды на баланс (если включён `wallet`)? Оба варианта поддерживаются конфигом.
+
+---
+
+## 21. Стек
+
+Версии сверены по реестрам (Go proxy, npm, Docker Hub) на 28.09.2026; при старте разработки фиксируются в `go.mod`.
+
+| Область | Выбор | Версия | Почему |
+|---|---|---|---|
+| Язык | Go | 1.27.1 | Последний стабильный релиз; `encoding/json/v2` и сборщик мусора Green Tea включены по умолчанию |
+| JSON / конфиг | `encoding/json/v2` + `jsontext` (stdlib) | Go 1.27 | Строгий разбор, быстрее v1; ядро остаётся только на stdlib |
+| YAML-адаптер | `go.yaml.in/yaml/v3` | v3.0.5 | Официальное продолжение `gopkg.in/yaml.v3`, который больше не поддерживается; v4 пока в RC |
+| Логи | `log/slog` (stdlib) | — | Структурные логи без зависимостей |
+| HTTP | `net/http` + `ServeMux` (stdlib) | — | Маршруты с методами и параметрами, фреймворк не нужен |
+| Telegram | `github.com/mymmrac/telego` | v1.12.1 | Поддерживает последний Bot API 10.3 (24.08.2026). Запасной вариант — `go-telegram/bot` v1.27.0 (тоже 10.3, без зависимостей) |
+| СУБД | PostgreSQL | 18 (18.6) | Последняя мажорная версия |
+| Драйвер БД | `github.com/jackc/pgx/v5` | v5.11.0 | Стандарт де-факто для Postgres в Go |
+| Запросы | `sqlc` | v1.31.1 | Типобезопасный Go-код из SQL, без ORM; подключается директивой `tool` в `go.mod` |
+| Миграции | `github.com/pressly/goose/v3` | v3.28.0 | `embed`, отдельная таблица версий на модуль |
+| Очередь задач | `github.com/riverqueue/river` | v0.47.0 | Задачи в той же транзакции, что и данные; cron; ретраи |
+| Клиент Remnawave | `ogen` (генерация из OpenAPI) | v1.24.0 | Под Remnawave 3.x |
+| i18n | `github.com/nicksnyder/go-i18n/v2` | v2.6.1 | ru + en, переопределение текстов |
+| QR-коды | `github.com/yeqown/go-qrcode/v2` | v2.3.0 | Поддерживается; популярный `skip2/go-qrcode` заброшен с 2020 |
+| Метрики и трейсы | OpenTelemetry Go + Prometheus-экспортер | otel v1.46.0 | Отраслевой стандарт |
+| Схема конфига | `github.com/invopop/jsonschema` | v0.14.0 | `tors schema` → подсказки и проверка конфига в редакторе |
+| Тесты | `testing` + `testing/synctest`, `testcontainers-go` | v0.44.0 | Виртуальное время; настоящий Postgres и панели в Docker |
+| Качество | `golangci-lint` v2 + `depguard`, `govulncheck`, `apidiff` | v2.14.0, x/vuln v1.8.0 | Стиль, архитектурные правила, уязвимости, совместимость API |
+| Mini App (фаза 7) | TypeScript + React + Vite + `@tma.js/sdk-react` + TanStack Query | TS 7.0, React 19.3, Vite 8.3, tma.js 3.0, Query 5 | Актуальный SDK Mini App — `@tma.js/*`: пакеты `@telegram-apps/*` не обновлялись с октября 2025 |
+| Поставка | Статический бинарь, Docker (distroless), docker compose | — | Один бинарь + Postgres |
+
+Идиомы Go, которые используются в плане: generics (`AppAs[T]`, `On[E]`), итераторы `iter.Seq2` для постраничных списков,
+`context` во всех вызовах, `errors.Join`, `sync.WaitGroup.Go`.
+
+**Сознательно не используем**, хотя это популярно:
+
+- ORM (GORM, ent) — вместо них `sqlc`: SQL остаётся явным, а типы генерируются.
+- Веб-фреймворки (gin, echo, fiber) — возможностей stdlib `net/http` хватает.
+- DI-контейнеры (wire, fx) — связывание через `Context`, как в Caddy.
+- Микросервисы, Kafka/NATS, Redis — для одной копии бота это лишняя инфраструктура. Если понадобятся, подключаются модулями.
+
+---
+
+## 22. Границы расширяемости: какой модуль можно написать
+
+«Абсолютно любой модуль» не примет ни одна система, включая Caddy. Здесь цель другая: любой модуль, который
+написан на Go, является доверенным кодом и встраивается в существующую точку расширения или объявляет свою,
+подключается **без изменения ядра**. То, что выходит за эти рамки, тоже решается модулями, а не правкой ядра.
+
+**Что можно сделать без изменения ядра**
+
+| Задача | Как |
+|---|---|
+| Новая панель (Marzban, Hiddify, …) | Гость `panels.providers.*` |
+| Новый способ оплаты | Гость `billing.gateways.*` |
+| Скидка, акция, особая цена | Гость `billing.pricing.*` |
+| Запрет заказа или выдачи (антифрод, лимиты) | Подписка на «before»-события `billing.order.creating`, `subscriptions.granting` |
+| Экран, кнопка, команда, диалог в боте | Гость `telegram.handlers.*` + `Menu(…)`, `Scene(…)` |
+| Проверка всех входящих апдейтов | Гость `telegram.middleware.*` |
+| Реакция на событие (аналитика, CRM, уведомления в Discord) | Модуль-приложение с подпиской на события |
+| Другой товар (не VPN, например выделенный IP) | Приложение, которое исполняет свой `Item.Kind` из `billing.order.paid` |
+| Свои данные о пользователе или подписке | Свои таблицы со ссылкой на `user_id`/`subscription_id`; чужие таблицы не меняются |
+| Новая витрина (Mini App, сайт, другой мессенджер) | Приложение поверх доменных сервисов |
+| Своя точка расширения | Новое приложение со своим namespace — сторонние модули расширяют уже его. Расширяемость рекурсивна, как в Caddy |
+| Замена стандартного модуля | Своя сборка без стандартного модуля + своя реализация с тем же ID и интерфейсом-контрактом (правило 8, §4.4) |
+| CLI-команда, HTTP-маршрут, миграции, тексты | `cmd.RegisterCommand`, `http.Mount`, `db.Migrate`, `locales/` |
+
+**Осознанные ограничения**
+
+1. **Модуль — это Go-код, вкомпилированный при сборке.** Установить модуль из админки без пересборки нельзя (в Caddy так же).
+   Если это понадобится, пишется модуль-мост: `plugins.grpc` (hashicorp/go-plugin — отдельный процесс, любой язык)
+   или `plugins.wasm` (wazero — песочница). Ядро при этом не меняется.
+2. **Модули — доверенный код.** Они работают в одном процессе с ботом и видят токен и базу. Сторонний код без аудита
+   подключается только через мосты из п. 1, которые дают изоляцию.
+3. **Модуль расширяет систему только там, где хост предусмотрел точку расширения.** Если её нет, меняется хост-модуль
+   (добавляется событие, конвейер или capability-интерфейс), но не ядро. Поэтому у ключевых решений домена
+   (цена, заказ, выдача, продление, аккаунт в панели) точки расширения заложены с самого начала.
+4. **Совместимость.** Сторонние модули зависят от Go-API пакетов-контрактов. Контракты версионируются по semver,
+   `apidiff` в CI не пропускает незаметные ломающие изменения, а удаление идёт через deprecation. Новые возможности
+   добавляются необязательными интерфейсами — они не ломают существующие модули.
+5. **Среда выполнения.** Одна копия процесса и PostgreSQL. Модуль, которому нужно своё хранилище (например, ClickHouse
+   для аналитики), приносит и настраивает его сам.
