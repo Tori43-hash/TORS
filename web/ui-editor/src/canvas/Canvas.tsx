@@ -82,7 +82,7 @@ export function Canvas() {
     () =>
       graph.edges.map((e) => {
         const selected = selectedEdges.has(e.id)
-        const color = selected ? 'var(--accent)' : e.kind === 'entry' ? 'var(--edge-entry)' : 'var(--edge)'
+        const color = selected ? 'var(--text)' : e.kind === 'entry' ? 'var(--text-2)' : 'var(--edge)'
         return {
           id: e.id,
           source: e.source,
@@ -282,7 +282,7 @@ export function Canvas() {
       connectionRadius={28}
       defaultEdgeOptions={{ type: 'smoothstep' }}
     >
-      <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="var(--dots)" />
+      <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="var(--dots)" bgColor="var(--canvas)" />
       <Controls showInteractive={false} position="bottom-right" />
     </ReactFlow>
   )

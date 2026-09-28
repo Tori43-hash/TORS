@@ -127,7 +127,6 @@ export function Select({ value, onChange, options, placeholder }: {
           ),
         )}
       </select>
-      <svg viewBox="0 0 12 12" aria-hidden><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </div>
   )
 }
@@ -182,7 +181,7 @@ export function VarMenu({ groups, onPick }: { groups: VarGroup[]; onPick(expr: s
   return (
     <div className="var-menu" ref={ref}>
       <button type="button" className="tool-btn" onClick={() => setOpen((v) => !v)} title="Вставить переменную">
-        {'{ }'} Переменная
+        Переменная
       </button>
       {open ? (
         <div className="popover">
@@ -211,15 +210,12 @@ export function VarMenu({ groups, onPick }: { groups: VarGroup[]; onPick(expr: s
   )
 }
 
+// Plain glyphs: the builder keeps icons to a minimum.
 export const Icon = {
-  up: <svg viewBox="0 0 16 16"><path d="M8 12.5v-9M4 7l4-4 4 4" /></svg>,
-  down: <svg viewBox="0 0 16 16"><path d="M8 3.5v9M4 9l4 4 4-4" /></svg>,
-  left: <svg viewBox="0 0 16 16"><path d="M12.5 8h-9M7 4 3 8l4 4" /></svg>,
-  right: <svg viewBox="0 0 16 16"><path d="M3.5 8h9M9 4l4 4-4 4" /></svg>,
-  close: <svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8" /></svg>,
-  plus: <svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" /></svg>,
-  back: <svg viewBox="0 0 16 16"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>,
-  trash: <svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" /></svg>,
-  row: <svg viewBox="0 0 16 16"><path d="M2.5 6h11v4h-11z" /></svg>,
-  copy: <svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.5" /><path d="M10.5 3H4.5A1.5 1.5 0 0 0 3 4.5v6" /></svg>,
+  up: '↑',
+  down: '↓',
+  left: '←',
+  right: '→',
+  close: '×',
+  plus: '+',
 }

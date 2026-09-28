@@ -1,6 +1,6 @@
 import { useEditor } from '../store'
 import { toEntry } from '../ops'
-import { Field, Icon, Section, Select, TextInput } from './fields'
+import { Field, Section, Select, TextInput } from './fields'
 
 /** Command or event: which screen it opens. */
 export function EntryPanel({ id }: { id: string }) {
@@ -16,7 +16,8 @@ export function EntryPanel({ id }: { id: string }) {
     return (
       <div className="ins">
         <div className="ins-head">
-          <div className="ins-kicker">Событие</div>
+          <button type="button" className="crumb" onClick={() => select(null)}>‹ Бот</button>
+        <div className="ins-kicker">Событие</div>
           <h2 className="ins-title">{ev?.title ?? name}</h2>
           <p className="ins-note">Бот показывает экран, когда это происходит, без нажатия кнопки.</p>
         </div>
@@ -30,7 +31,7 @@ export function EntryPanel({ id }: { id: string }) {
             })}
             options={screens}
           />
-          <button type="button" className="ghost-btn" onClick={() => edit((t) => void ((t.events ??= {})[name] = ''))}>Не показывать экран</button>
+          <button type="button" className="btn" onClick={() => edit((t) => void ((t.events ??= {})[name] = ''))}>Не показывать экран</button>
         </Section>
       </div>
     )
@@ -43,6 +44,7 @@ export function EntryPanel({ id }: { id: string }) {
   return (
     <div className="ins">
       <div className="ins-head">
+        <button type="button" className="crumb" onClick={() => select(null)}>‹ Бот</button>
         <div className="ins-kicker">Команда</div>
         {name === 'start' ? (
           <h2 className="ins-title">/start</h2>
@@ -85,8 +87,8 @@ export function EntryPanel({ id }: { id: string }) {
       </Section>
       {name !== 'start' ? (
         <div className="ins-danger">
-          <button type="button" className="danger-btn" onClick={() => { edit((t) => void delete t.commands![name]); select(null) }}>
-            {Icon.trash} Удалить команду
+          <button type="button" className="btn btn-danger" onClick={() => { edit((t) => void delete t.commands![name]); select(null) }}>
+            Удалить команду
           </button>
         </div>
       ) : null}

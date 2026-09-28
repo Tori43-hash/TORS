@@ -61,6 +61,7 @@ export function ScreenPanel({ id }: { id: string }) {
   return (
     <div className="ins">
       <div className="ins-head">
+        <button type="button" className="crumb" onClick={() => select(null)}>‹ Бот</button>
         <div className="ins-kicker">Экран</div>
         <TextInput
           value={id}
@@ -76,7 +77,7 @@ export function ScreenPanel({ id }: { id: string }) {
         {(screen.blocks ?? []).map((b, i) => (
           <div className="block-card" key={i}>
             <div className="block-card-head">
-              <span>{b.photo !== undefined ? 'Фото' : b.buttons ? 'Кнопки в сообщении' : 'Текст'}</span>
+              <span>{b.photo !== undefined ? 'Фото' : b.buttons ? 'Кнопки (уйдут в клавиатуру)' : 'Текст'}</span>
               <span className="spacer" />
               <IconButton title="Выше" onClick={() => moveBlock(i, -1)} disabled={i === 0}>{Icon.up}</IconButton>
               <IconButton title="Ниже" onClick={() => moveBlock(i, 1)} disabled={i === (screen.blocks?.length ?? 0) - 1}>{Icon.down}</IconButton>
@@ -110,13 +111,12 @@ export function ScreenPanel({ id }: { id: string }) {
           </div>
         ))}
         <div className="add-row">
-          <button type="button" className="ghost-btn" onClick={() => addBlock({ text: { ru: '', en: '' } })}>{Icon.plus} Текст</button>
-          <button type="button" className="ghost-btn" onClick={() => addBlock({ photo: '' })}>{Icon.plus} Фото</button>
-          <button type="button" className="ghost-btn" onClick={() => addBlock({ buttons: { items: [newButton()] } })}>{Icon.plus} Кнопки</button>
+          <button type="button" className="btn" onClick={() => addBlock({ text: { ru: '', en: '' } })}>Текст</button>
+          <button type="button" className="btn" disabled={!!screen.blocks?.some((b) => b.photo !== undefined)} title="В сообщении Telegram одно фото" onClick={() => addBlock({ photo: '' })}>Фото</button>
         </div>
       </Section>
 
-      <Section title="Кнопки под сообщением">
+      <Section title="Кнопки">
         <div className="kb-grid">
           {(screen.keyboard ?? []).map((row, i) => (
             <div key={i}>
@@ -166,23 +166,15 @@ export function ScreenPanel({ id }: { id: string }) {
           />
         </div>
         <div className="add-row">
-          <button type="button" className="ghost-btn" onClick={() => addRow([newButton()])}>{Icon.plus} Ряд</button>
+          <button type="button" className="btn" onClick={() => addRow([newButton()])}>Ряд</button>
           <button
             type="button"
-            className="ghost-btn"
+            className="btn"
             disabled={listAliases.length === 0}
             title={listAliases.length ? 'Кнопка на каждый элемент списка' : 'Сначала подключите список в «Данных»'}
             onClick={() => addRow({ repeat: `.${listAliases[0]}`, columns: 1, button: { text: { ru: '{{ .ID }}' } } })}
           >
-            {Icon.plus} Список
-          </button>
-          <button
-            type="button"
-            className="ghost-btn"
-            disabled={!Object.keys(theme.fragments ?? {}).length}
-            onClick={() => addRow({ use: Object.keys(theme.fragments ?? {})[0] })}
-          >
-            {Icon.plus} Фрагмент
+            Список
           </button>
         </div>
         <p className="ins-note">Перетаскивайте кнопки между рядами. Кнопки в одном ряду делят ширину поровну — так в Telegram.</p>
@@ -265,8 +257,8 @@ export function ScreenPanel({ id }: { id: string }) {
       </Section>
 
       <div className="ins-danger">
-        <button type="button" className="danger-btn" onClick={() => { edit((t) => void delete t.screens[id]); select(null); useEditor.getState().notify('Экран удалён', true) }}>
-          {Icon.trash} Удалить экран
+        <button type="button" className="btn btn-danger" onClick={() => { edit((t) => void delete t.screens[id]); select(null); useEditor.getState().notify('Экран удалён', true) }}>
+          Удалить экран
         </button>
       </div>
     </div>

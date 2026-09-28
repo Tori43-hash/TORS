@@ -71,11 +71,10 @@ export function ButtonPanel({ screen, refId }: { screen: string; refId: string }
   ].filter((p, i, a) => a.indexOf(p) === i && !(b.params && p in b.params))
 
   const styles = [
-    { value: '', label: <span className="swatch swatch-default" />, title: 'Обычная' },
-    { value: 'primary', label: <span className="swatch swatch-primary" />, title: 'Синяя' },
-    { value: 'success', label: <span className="swatch swatch-success" />, title: 'Зелёная' },
-    { value: 'danger', label: <span className="swatch swatch-danger" />, title: 'Красная' },
-    ...(inBody ? [{ value: 'link', label: <span className="swatch swatch-link">Aa</span>, title: 'Ссылка' }] : []),
+    { value: '', label: 'Обычная' },
+    { value: 'primary', label: 'Синяя' },
+    { value: 'success', label: 'Зелёная' },
+    { value: 'danger', label: 'Красная' },
   ]
 
   const newScreenFor = () => {
@@ -96,7 +95,7 @@ export function ButtonPanel({ screen, refId }: { screen: string; refId: string }
     <div className="ins">
       <div className="ins-head">
         <button type="button" className="crumb" onClick={() => select({ kind: 'screen', id: screen })}>
-          {Icon.back} {screen}
+          ‹ {screen}
         </button>
         <div className="ins-kicker">{repeat ? 'Кнопка списка' : inBody ? 'Кнопка в сообщении' : 'Кнопка'}</div>
         {loc.fragment ? <p className="ins-note warn">Кнопка из фрагмента «{loc.fragment}» — изменения применятся на всех экранах с ним.</p> : null}
@@ -104,14 +103,9 @@ export function ButtonPanel({ screen, refId }: { screen: string; refId: string }
 
       <Section title="Надпись">
         <TextEditor value={b.text} multiline={false} vars={vars} placeholder="Текст кнопки" onChange={(t) => change((x) => void (x.text = t), `btext:${screen}:${refId}`)} />
-        <div className="pair">
-          <Field label="Эмодзи">
-            <TextInput value={b.emoji ?? ''} placeholder="🛒" onChange={(v) => change((x) => void (v ? (x.emoji = v) : delete x.emoji), `bemoji:${screen}:${refId}`)} />
-          </Field>
-          <Field label="Цвет">
-            <Segmented value={(b.style ?? '') as string} onChange={(v) => change((x) => void (v ? (x.style = v as Button['style']) : delete x.style))} options={styles} />
-          </Field>
-        </div>
+        <Field label="Цвет в Telegram">
+          <Segmented value={(b.style ?? '') as string} onChange={(v) => change((x) => void (v ? (x.style = v as Button['style']) : delete x.style))} options={styles} />
+        </Field>
       </Section>
 
       <Section title="Что делает">
@@ -119,7 +113,7 @@ export function ButtonPanel({ screen, refId }: { screen: string; refId: string }
         {kind === 'goto' ? (
           <div className="pair">
             <Select value={b.goto ?? ''} placeholder="Выберите экран" onChange={(v) => change((x) => void (x.goto = v))} options={screens.map((id) => ({ value: id, label: id }))} />
-            <button type="button" className="ghost-btn" onClick={newScreenFor}>{Icon.plus} Новый</button>
+            <button type="button" className="btn" onClick={newScreenFor}>Новый</button>
           </div>
         ) : null}
         {kind === 'action' ? (
@@ -172,7 +166,7 @@ export function ButtonPanel({ screen, refId }: { screen: string; refId: string }
         >
           {requiredParams.map((p) => (
             <button key={p} type="button" className="hint-chip" onClick={() => change((x) => void (x.params = { ...x.params, [p]: repeat ? '{{ .ID }}' : `{{ .Params.${p} }}` }))}>
-              {Icon.plus} Нужен параметр <b>{p}</b>
+              Нужен параметр <b>{p}</b>
             </button>
           ))}
           {Object.entries(b.params ?? {}).map(([k, v]) => (
@@ -215,9 +209,6 @@ export function ButtonPanel({ screen, refId }: { screen: string; refId: string }
       <Section title="Условия">
         <Condition label="Показывать, если" manifest={manifest} value={b.visible_if} onChange={(v) => change((x) => void (v ? (x.visible_if = v) : delete x.visible_if))} />
         <Condition label="Неактивна, если" manifest={manifest} value={b.disabled_if} onChange={(v) => change((x) => void (v ? (x.disabled_if = v) : delete x.disabled_if))} />
-        <Field label="Кастомный эмодзи" hint="ID из Telegram. Работает при Premium у владельца бота или купленном username на Fragment.">
-          <TextInput value={b.icon ?? ''} mono placeholder="5368324170671202286" onChange={(v) => change((x) => void (v ? (x.icon = v.replace(/\D/g, '')) : delete x.icon), `bicon:${screen}:${refId}`)} />
-        </Field>
       </Section>
 
       {ref.area === 'kb' ? (
@@ -227,8 +218,8 @@ export function ButtonPanel({ screen, refId }: { screen: string; refId: string }
             <IconButton title="Левее" onClick={() => { edit((t) => moveKeyboardButton(t.screens[screen], { row: ref.row, col: ref.col }, { row: ref.row, col: ref.col - 1 })); select({ kind: 'button', screen, ref: `k.${ref.row}.${ref.col - 1}` }) }} disabled={ref.col === 0}>{Icon.left}</IconButton>
             <IconButton title="Правее" onClick={() => { edit((t) => moveKeyboardButton(t.screens[screen], { row: ref.row, col: ref.col }, { row: ref.row, col: ref.col + 1 })); select({ kind: 'button', screen, ref: `k.${ref.row}.${ref.col + 1}` }) }}>{Icon.right}</IconButton>
             <IconButton title="В следующий ряд" onClick={() => { edit((t) => moveKeyboardButton(t.screens[screen], { row: ref.row, col: ref.col }, { row: ref.row + 1, col: 99 })); select({ kind: 'screen', id: screen }) }}>{Icon.down}</IconButton>
-            <button type="button" className="ghost-btn" onClick={() => { edit((t) => moveKeyboardButton(t.screens[screen], { row: ref.row, col: ref.col }, { row: ref.row + 1, col: 0, newRow: true })); select({ kind: 'screen', id: screen }) }}>
-              {Icon.row} Отдельный ряд
+            <button type="button" className="btn" onClick={() => { edit((t) => moveKeyboardButton(t.screens[screen], { row: ref.row, col: ref.col }, { row: ref.row + 1, col: 0, newRow: true })); select({ kind: 'screen', id: screen }) }}>
+              Отдельный ряд
             </button>
           </div>
         </Section>
@@ -236,8 +227,8 @@ export function ButtonPanel({ screen, refId }: { screen: string; refId: string }
 
       {ref.area !== 'frag' ? (
         <div className="ins-danger">
-          <button type="button" className="danger-btn" onClick={() => { edit((t) => void removeButton(t, screen, refId)); select({ kind: 'screen', id: screen }) }}>
-            {Icon.trash} {repeat ? 'Удалить список' : 'Удалить кнопку'}
+          <button type="button" className="btn btn-danger" onClick={() => { edit((t) => void removeButton(t, screen, refId)); select({ kind: 'screen', id: screen }) }}>
+            {repeat ? 'Удалить список' : 'Удалить кнопку'}
           </button>
         </div>
       ) : null}

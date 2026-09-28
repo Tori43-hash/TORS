@@ -9,8 +9,6 @@ type ActionNodeT = Node<ActionData & { selected: boolean }, 'action'>
 type EntryNodeT = Node<EntryData & { selected: boolean }, 'entry'>
 
 export const ScreenNode = memo(function ScreenNode({ data }: NodeProps<ScreenNodeT>) {
-  const tgDark = useEditor((s) => s.tgDark)
-  const renderer = useEditor((s) => s.renderer)
   const select = useEditor((s) => s.select)
   const { id, r, errors, warnings, input, list, selected, selectedRef } = data
   return (
@@ -18,15 +16,12 @@ export const ScreenNode = memo(function ScreenNode({ data }: NodeProps<ScreenNod
       <Handle type="target" id="in" position={Position.Left} className="node-in" />
       <div className="node-head">
         <span className="node-title">{id}</span>
-        <span className="node-badges">
-          {errors > 0 ? <span className="badge badge-error">{errors}</span> : warnings > 0 ? <span className="badge badge-warn">{warnings}</span> : null}
-        </span>
+        {errors > 0 ? <span className="badge badge-error" title="Ошибки">{errors}</span> : warnings > 0 ? <span className="badge badge-warn" title="Предупреждения">{warnings}</span> : null}
       </div>
-      <div className={`tg tg-wall node-chat${tgDark ? ' is-dark' : ''}`}>
+      <div className="tg tg-wall node-chat">
         {r ? (
           <TgMessage
             r={r}
-            mode={renderer}
             editing={{ selectedRef, handles: true, onSelect: (ref) => select({ kind: 'button', screen: id, ref }) }}
           />
         ) : (
@@ -57,12 +52,7 @@ export const ActionNode = memo(function ActionNode({ data }: NodeProps<ActionNod
   return (
     <div className={`node-action${data.selected ? ' is-selected' : ''}`}>
       <Handle type="target" id="in" position={Position.Left} className="node-in" />
-      <div className="node-action-head">
-        <svg viewBox="0 0 16 16" aria-hidden>
-          <path d="M3 8h8M8 4.5 11.5 8 8 11.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span title={data.action}>{data.title}</span>
-      </div>
+      <div className="node-action-head" title={data.action}>{data.title}</div>
       {data.outcomes.map((o) => (
         <div key={o.name} className={`node-outcome${o.overridden ? ' is-own' : ''}`}>
           <span>{o.title}</span>

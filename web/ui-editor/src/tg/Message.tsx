@@ -3,9 +3,10 @@ import { Handle, Position } from '@xyflow/react'
 import type { Rendered, RenderedBlock, RenderedButton } from '../types'
 import { markdown } from '../markdown'
 
-// Renders a bot message the way Telegram draws it: a bubble with the body and
-// the inline keyboard under it. Metrics follow Telegram Web: 40px keyboard
-// rows, 2px gaps, 6px button radius, 15px outer corners, 14px/500 labels.
+// Renders a bot message the way Telegram draws it and the bot sends it: one
+// photo, the text as its caption, buttons in the inline keyboard. Metrics
+// follow Telegram Web: 40px keyboard rows, 2px gaps, 6px button radius, 15px
+// outer corners, 14px/500 labels.
 
 export interface Editing {
   selectedRef?: string
@@ -15,7 +16,6 @@ export interface Editing {
 
 interface Props {
   r: Rendered
-  mode: 'rich' | 'classic'
   time?: string
   editing?: Editing
   onPress?(b: RenderedButton): void
@@ -56,9 +56,9 @@ function Photo({ src }: { src: string }) {
   )
 }
 
-function KbButton({ b, editing, onPress, rich, handle }: { b: RenderedButton; editing?: Editing; onPress?(b: RenderedButton): void; rich?: boolean; handle: boolean }) {
+function KbButton({ b, editing, onPress, handle }: { b: RenderedButton; editing?: Editing; onPress?(b: RenderedButton): void; handle: boolean }) {
   const cls = [
-    rich ? 'tg-rich-btn' : 'tg-kb-btn',
+    'tg-kb-btn',
     b.style ? `tg-style-${b.style}` : '',
     b.disabled ? 'is-disabled' : '',
     b.hidden ? 'is-hidden' : '',
@@ -102,24 +102,14 @@ function Keyboard({ rows, editing, onPress }: { rows: RenderedButton[][]; editin
   )
 }
 
-function Body({ blocks, mode, editing, onPress, time }: { blocks: RenderedBlock[]; mode: 'rich' | 'classic'; editing?: Editing; onPress?(b: RenderedButton): void; time: string }) {
+function Body({ blocks, time }: { blocks: RenderedBlock[]; time: string }) {
   const out: ReactNode[] = []
   const last = blocks.length - 1
   blocks.forEach((b, i) => {
     if (b.kind === 'photo') {
       out.push(<div key={i} className={`tg-media${i === 0 ? ' is-first' : ''}${i === last ? ' is-last' : ''}`}><Photo src={b.photo!} /></div>)
     } else if (b.kind === 'text') {
-      out.push(
-        <div key={i} className="tg-text" dangerouslySetInnerHTML={{ __html: markdown(b.text ?? '', { headings: mode === 'rich' }) }} />,
-      )
-    } else if (b.kind === 'buttons') {
-      out.push(
-        <div key={i} className={`tg-rich-row align-${b.align || 'left'}`}>
-          {b.buttons!.map((btn, j) => (
-            <KbButton key={j} b={btn} editing={editing} onPress={onPress} rich handle />
-          ))}
-        </div>,
-      )
+      out.push(<div key={i} className="tg-text" dangerouslySetInnerHTML={{ __html: markdown(b.text ?? '', { headings: false }) }} />)
     }
   })
   const endsWithMedia = blocks.at(-1)?.kind === 'photo'
@@ -131,9 +121,9 @@ function Body({ blocks, mode, editing, onPress, time }: { blocks: RenderedBlock[
   return <>{out}</>
 }
 
-/** Classic messages: one media on top (or under the caption), text as caption,
- * body buttons moved to the keyboard — what the fallback renderer sends. */
-function toClassic(r: Rendered): Rendered {
+/** What the bot sends: one photo on top (or under the text if it comes after
+ * it), all text as one caption, buttons of the body moved to the keyboard. */
+export function compose(r: Rendered): Rendered {
   const photoIndex = r.blocks.findIndex((b) => b.kind === 'photo')
   const firstText = r.blocks.findIndex((b) => b.kind === 'text')
   const text = r.blocks.filter((b) => b.kind === 'text').map((b) => b.text).join('\n\n')
@@ -147,14 +137,14 @@ function toClassic(r: Rendered): Rendered {
   return { ...r, blocks, keyboard: [...bodyRows, ...r.keyboard] }
 }
 
-export const TgMessage = memo(function TgMessage({ r, mode, time = '12:00', editing, onPress, footer }: Props) {
-  const view = mode === 'classic' ? toClassic(r) : r
+export const TgMessage = memo(function TgMessage({ r, time = '12:00', editing, onPress, footer }: Props) {
+  const view = compose(r)
   const hasKb = view.keyboard.length > 0
   const onlyMedia = view.blocks.length === 1 && view.blocks[0].kind === 'photo'
   return (
     <div className={`tg-msg${hasKb ? ' with-kb' : ''}`}>
       <div className={`tg-bubble${onlyMedia ? ' only-media' : ''}`}>
-        <Body blocks={view.blocks} mode={mode} editing={editing} onPress={onPress} time={time} />
+        <Body blocks={view.blocks} time={time} />
         {hasKb ? null : <svg className="tg-tail" viewBox="0 0 11 20" aria-hidden><path d="M11 0H6v11c0 4.5-2.2 7.6-6 9h11z" /></svg>}
       </div>
       {hasKb ? <Keyboard rows={view.keyboard} editing={editing} onPress={onPress} /> : null}

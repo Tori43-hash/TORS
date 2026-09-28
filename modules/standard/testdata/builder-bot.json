@@ -1,0 +1,746 @@
+{
+  "build": {
+    "core": "latest",
+    "modules": [
+      {
+        "source": "github.com/tori43-hash/tors/modules/billing"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/billing/stars"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/catalog"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/database"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/jobs"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/kv"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/kv/postgres"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/panels"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/panels/remnawave"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/subscriptions"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/support"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/telegram"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/trial"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/ui"
+      },
+      {
+        "source": "github.com/tori43-hash/tors/modules/users"
+      }
+    ]
+  },
+  "apps": {
+    "billing": {
+      "gateway": {
+        "gateway": "stars"
+      }
+    },
+    "catalog": {
+      "plans": [
+        {
+          "id": "month",
+          "title": {
+            "en": "1 month",
+            "ru": "1 месяц"
+          },
+          "days": 30,
+          "traffic_gb": 200,
+          "devices": 3,
+          "price": 150
+        },
+        {
+          "id": "year",
+          "title": {
+            "en": "12 months",
+            "ru": "12 месяцев"
+          },
+          "days": 365,
+          "devices": 5,
+          "price": 1400
+        }
+      ]
+    },
+    "database": {
+      "dsn": "{env.DATABASE_URL}"
+    },
+    "jobs": {},
+    "kv": {
+      "store": {
+        "store": "postgres"
+      }
+    },
+    "panels": {
+      "providers": {
+        "main": {
+          "provider": "remnawave",
+          "url": "https://panel.example.com",
+          "token": "{env.REMNAWAVE_TOKEN}"
+        }
+      }
+    },
+    "subscriptions": {
+      "remind_days": 3
+    },
+    "support": {
+      "contact": "@help"
+    },
+    "telegram": {
+      "token": "{env.BOT_TOKEN}",
+      "transport": "polling",
+      "theme": {
+        "version": 1,
+        "commands": {
+          "start": {
+            "default": "menu"
+          }
+        },
+        "screens": {
+          "my_subs": {
+            "data": {
+              "subs": "subscriptions.list"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**My subscriptions**",
+                  "ru": "**Мои подписки**"
+                }
+              }
+            ],
+            "keyboard": [
+              {
+                "repeat": ".subs",
+                "columns": 1,
+                "page_size": 6,
+                "button": {
+                  "text": {
+                    "en": "{{ .Label }} · {{ if eq .Status \"active\" }}until {{ .ExpiresAt | date }}{{ else }}ended{{ end }}",
+                    "ru": "{{ .Label }} · {{ if eq .Status \"active\" }}до {{ .ExpiresAt | date }}{{ else }}закончилась{{ end }}"
+                  },
+                  "goto": "sub",
+                  "params": {
+                    "id": "{{ .ID }}"
+                  }
+                }
+              },
+              [
+                {
+                  "text": {
+                    "en": "Buy a subscription",
+                    "ru": "Купить подписку"
+                  },
+                  "goto": "plans"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ],
+            "empty": "no_subs"
+          },
+          "no_subs": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "You have no subscriptions yet.",
+                  "ru": "У вас пока нет подписок."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Choose a plan",
+                    "ru": "Выбрать тариф"
+                  },
+                  "goto": "plans"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "sub": {
+            "data": {
+              "sub": "subscriptions.get"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**{{ .sub.Label }}**\n\n{{ if eq .sub.Status \"active\" }}Valid until {{ .sub.ExpiresAt | date }}{{ else }}Ended {{ .sub.ExpiresAt | date }}{{ end }}\nTraffic: {{ .sub.Used | bytes }}{{ if .sub.Limit }} of {{ .sub.Limit | bytes }}{{ end }}\n\nLink for the app:\n`{{ .sub.URL }}`",
+                  "ru": "**{{ .sub.Label }}**\n\n{{ if eq .sub.Status \"active\" }}Действует до {{ .sub.ExpiresAt | date }}{{ else }}Закончилась {{ .sub.ExpiresAt | date }}{{ end }}\nТрафик: {{ .sub.Used | bytes }}{{ if .sub.Limit }} из {{ .sub.Limit | bytes }}{{ end }}\n\nСсылка для приложения:\n`{{ .sub.URL }}`"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Copy link",
+                    "ru": "Скопировать ссылку"
+                  },
+                  "copy_text": "{{ .sub.URL }}"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Renew",
+                    "ru": "Продлить"
+                  },
+                  "action": "subscriptions.renew",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Rename",
+                    "ru": "Переименовать"
+                  },
+                  "goto": "sub_rename",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                },
+                {
+                  "text": {
+                    "en": "New link",
+                    "ru": "Новая ссылка"
+                  },
+                  "goto": "sub_revoke",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "sub_expired": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "Subscription “{{ .Event.Label }}” has ended.",
+                  "ru": "Подписка «{{ .Event.Label }}» закончилась."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Renew",
+                    "ru": "Продлить"
+                  },
+                  "action": "subscriptions.renew",
+                  "params": {
+                    "id": "{{ .Event.ID }}"
+                  }
+                }
+              ]
+            ]
+          },
+          "sub_expiring": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "Subscription “{{ .Event.Label }}” ends in {{ .Event.DaysLeft }} {{ plural .Event.DaysLeft \"day\" \"days\" }}.",
+                  "ru": "Подписка «{{ .Event.Label }}» закончится через {{ .Event.DaysLeft }} {{ plural .Event.DaysLeft \"день\" \"дня\" \"дней\" }}."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Renew",
+                    "ru": "Продлить"
+                  },
+                  "action": "subscriptions.renew",
+                  "params": {
+                    "id": "{{ .Event.ID }}"
+                  }
+                }
+              ]
+            ]
+          },
+          "sub_paid": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "**Payment received**\n\nSubscription “{{ .Event.Label }}” is valid until {{ .Event.ExpiresAt | date }}.\n\nLink for the app:\n`{{ .Event.URL }}`",
+                  "ru": "**Оплата прошла**\n\nПодписка «{{ .Event.Label }}» действует до {{ .Event.ExpiresAt | date }}.\n\nСсылка для приложения:\n`{{ .Event.URL }}`"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Copy link",
+                    "ru": "Скопировать ссылку"
+                  },
+                  "copy_text": "{{ .Event.URL }}"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "My subscriptions",
+                    "ru": "Мои подписки"
+                  },
+                  "goto": "my_subs"
+                }
+              ]
+            ]
+          },
+          "sub_rename": {
+            "data": {
+              "sub": "subscriptions.get"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "Send a new name for “{{ .sub.Label }}”. Up to 32 characters.",
+                  "ru": "Отправьте новое название для «{{ .sub.Label }}». До 32 символов."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Cancel",
+                    "ru": "Отмена"
+                  },
+                  "back": true
+                }
+              ]
+            ],
+            "input": {
+              "action": "subscriptions.rename",
+              "param": "label"
+            }
+          },
+          "sub_revoke": {
+            "data": {
+              "sub": "subscriptions.get"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "Issue a new link for “{{ .sub.Label }}”?\n\nThe old one will stop working and devices will need to reconnect.",
+                  "ru": "Выпустить новую ссылку для «{{ .sub.Label }}»?\n\nСтарая перестанет работать, устройства нужно будет подключить заново."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Issue",
+                    "ru": "Выпустить"
+                  },
+                  "style": "danger",
+                  "action": "subscriptions.revoke",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Cancel",
+                    "ru": "Отмена"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "plan": {
+            "data": {
+              "plan": "catalog.plan"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**{{ .plan.Title }}**\n\nPeriod: {{ .plan.Days }} {{ plural .plan.Days \"day\" \"days\" }}\nTraffic: {{ if .plan.Traffic }}{{ .plan.Traffic | bytes }}{{ else }}unlimited{{ end }}\nDevices: {{ if .plan.Devices }}{{ .plan.Devices }}{{ else }}unlimited{{ end }}\n\nPrice: **{{ .plan.Price }} ⭐**",
+                  "ru": "**{{ .plan.Title }}**\n\nСрок: {{ .plan.Days }} {{ plural .plan.Days \"день\" \"дня\" \"дней\" }}\nТрафик: {{ if .plan.Traffic }}{{ .plan.Traffic | bytes }}{{ else }}без ограничений{{ end }}\nУстройств: {{ if .plan.Devices }}{{ .plan.Devices }}{{ else }}без ограничений{{ end }}\n\nСтоимость: **{{ .plan.Price }} ⭐**"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Pay",
+                    "ru": "Оплатить"
+                  },
+                  "action": "billing.checkout",
+                  "params": {
+                    "plan": "{{ .Params.plan }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "plans": {
+            "data": {
+              "plans": "catalog.plans"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**Plans**\n\nChoose a subscription period.",
+                  "ru": "**Тарифы**\n\nВыберите срок подписки."
+                }
+              }
+            ],
+            "keyboard": [
+              {
+                "repeat": ".plans",
+                "columns": 1,
+                "button": {
+                  "text": {
+                    "en": "{{ .Title }} · {{ .Price }} ⭐",
+                    "ru": "{{ .Title }} · {{ .Price }} ⭐"
+                  },
+                  "goto": "plan",
+                  "params": {
+                    "plan": "{{ .ID }}"
+                  }
+                }
+              },
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "trial_ok": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "**Your free trial is on**\n\nThe subscription is in “My subscriptions”.",
+                  "ru": "**Пробный период включён**\n\nПодписка уже в разделе «Мои подписки»."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Open subscription",
+                    "ru": "Открыть подписку"
+                  },
+                  "goto": "sub",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Home",
+                    "ru": "В начало"
+                  },
+                  "home": true
+                }
+              ]
+            ]
+          },
+          "trial_used": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "The free trial has already been used.",
+                  "ru": "Пробный период уже был использован."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Choose a plan",
+                    "ru": "Выбрать тариф"
+                  },
+                  "goto": "plans"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "support": {
+            "data": {
+              "support": "support.info"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**Support**\n\nWrite to us: {{ .support.Contact }}",
+                  "ru": "**Поддержка**\n\nНапишите нам: {{ .support.Contact }}"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Write",
+                    "ru": "Написать"
+                  },
+                  "url": "{{ .support.URL }}"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "menu": {
+            "blocks": [
+              {
+                "text": {
+                  "ru": "Привет, {{ .User.FirstName }}!",
+                  "en": "New screen"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "ru": "Тарифы",
+                    "en": "Button"
+                  },
+                  "goto": "plans"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "ru": "Мои подписки",
+                    "en": "Button"
+                  },
+                  "goto": "my_subs"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "ru": "Поддержка",
+                    "en": "Button"
+                  },
+                  "goto": "support"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "ru": "Попробовать бесплатно",
+                    "en": "Button"
+                  },
+                  "action": "trial.start",
+                  "visible_if": "trial.available"
+                }
+              ]
+            ]
+          }
+        },
+        "editor": {
+          "positions": {
+            "e:cmd:start": {
+              "x": 0,
+              "y": 0
+            },
+            "e:ev:subscriptions.expired": {
+              "x": 0,
+              "y": 76
+            },
+            "e:ev:subscriptions.expiring": {
+              "x": 0,
+              "y": 152
+            },
+            "e:ev:subscriptions.paid": {
+              "x": 0,
+              "y": 228
+            },
+            "s:my_subs": {
+              "x": 1020,
+              "y": 0
+            },
+            "s:no_subs": {
+              "x": 1780,
+              "y": 0
+            },
+            "s:sub": {
+              "x": 1780,
+              "y": 247
+            },
+            "s:sub_expired": {
+              "x": 260,
+              "y": 0
+            },
+            "s:sub_expiring": {
+              "x": 260,
+              "y": 205
+            },
+            "s:sub_paid": {
+              "x": 260,
+              "y": 431
+            },
+            "s:sub_rename": {
+              "x": 2540,
+              "y": 0
+            },
+            "s:sub_revoke": {
+              "x": 2540,
+              "y": 258
+            },
+            "s:plan": {
+              "x": 2540,
+              "y": 610
+            },
+            "s:plans": {
+              "x": 1780,
+              "y": 704
+            },
+            "a:sub:k.1.0": {
+              "x": 2172,
+              "y": 349
+            },
+            "a:sub_expired:k.0.0": {
+              "x": 652,
+              "y": 60
+            },
+            "a:sub_expiring:k.0.0": {
+              "x": 652,
+              "y": 265
+            },
+            "a:sub_rename:input": {
+              "x": 2932,
+              "y": 60
+            },
+            "a:sub_revoke:k.0.0": {
+              "x": 2932,
+              "y": 318
+            },
+            "a:plan:k.0.0": {
+              "x": 2932,
+              "y": 670
+            },
+            "s:trial_ok": {
+              "x": 3300,
+              "y": 0
+            },
+            "s:trial_used": {
+              "x": 3300,
+              "y": 256
+            },
+            "s:support": {
+              "x": 3300,
+              "y": 578
+            },
+            "s:menu": {
+              "x": 260,
+              "y": 804
+            },
+            "a:menu:k.3.0": {
+              "x": 652,
+              "y": 990
+            }
+          }
+        }
+      }
+    },
+    "trial": {
+      "days": 3,
+      "traffic_gb": 10,
+      "devices": 1
+    },
+    "ui": {},
+    "users": {
+      "languages": [
+        "ru",
+        "en"
+      ]
+    }
+  }
+}

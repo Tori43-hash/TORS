@@ -1,55 +1,49 @@
 /* Telegram look. Metrics and colors follow Telegram Web (tweb): keyboard rows
    40px with 2px gaps, 6px button radius, 15px bubble radius, 16px/1.3125 text,
-   14px/500 button labels; light and night palettes from its theme controller. */
+   14px/500 button labels; light and night palettes from its theme controller.
+   The wallpaper is a plain gray so the builder stays black and white. */
 
 .tg {
-  --tg-wall:
-    radial-gradient(120% 90% at 0% 0%, #dbddbb 0%, transparent 60%),
-    radial-gradient(110% 90% at 100% 0%, #d5d88d 0%, transparent 55%),
-    radial-gradient(120% 100% at 0% 100%, #88b884 0%, transparent 60%),
-    radial-gradient(120% 100% at 100% 100%, #6ba587 0%, transparent 60%),
-    #a8c69a;
+  --tg-wall: #d9dadc;
   --tg-bubble: #ffffff;
-  --tg-bubble-out: #eeffde;
+  --tg-bubble-out: #effedd;
   --tg-text: #000000;
   --tg-secondary: #707579;
   --tg-time-out: #4fae4e;
   --tg-link: #3390ec;
-  --tg-kb: hsla(85.53, 36.92%, 40.4%, 0.4);
-  --tg-kb-hover: hsla(85.53, 36.92%, 40.4%, 0.55);
+  --tg-kb: rgba(0, 0, 0, 0.26);
+  --tg-kb-hover: rgba(0, 0, 0, 0.34);
   --tg-primary: 51, 144, 236;
   --tg-success: 112, 183, 104;
   --tg-danger: 223, 63, 64;
   --tg-code: #df3f40;
   --tg-quote: 51, 144, 236;
-  --tg-service: rgba(0, 0, 0, 0.22);
+  --tg-service: rgba(0, 0, 0, 0.26);
   --tg-radius: 15px;
   --tg-radius-small: 5px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-.tg.is-dark {
-  --tg-wall:
-    radial-gradient(120% 90% at 0% 0%, #2a3a2c 0%, transparent 60%),
-    radial-gradient(110% 90% at 100% 0%, #1e2b22 0%, transparent 55%),
-    radial-gradient(120% 100% at 0% 100%, #16221a 0%, transparent 60%),
-    radial-gradient(120% 100% at 100% 100%, #0f1812 0%, transparent 60%),
-    #131c16;
-  --tg-bubble: #212121;
-  --tg-bubble-out: #8774e1;
-  --tg-text: #ffffff;
-  --tg-secondary: #aaaaaa;
-  --tg-time-out: rgba(255, 255, 255, 0.6);
-  --tg-link: #8774e1;
-  --tg-kb: hsla(140, 12%, 32%, 0.45);
-  --tg-kb-hover: hsla(140, 12%, 38%, 0.6);
-  --tg-primary: 135, 116, 225;
-  --tg-success: 92, 200, 94;
-  --tg-danger: 255, 89, 90;
-  --tg-code: #ff595a;
-  --tg-quote: 135, 116, 225;
-  --tg-service: rgba(0, 0, 0, 0.35);
+/* The preview follows the builder's light or dark look, with Telegram's night palette. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tg {
+    --tg-wall: #1b1b1d;
+    --tg-bubble: #212121;
+    --tg-bubble-out: #766ac8;
+    --tg-text: #ffffff;
+    --tg-secondary: #aaaaaa;
+    --tg-time-out: rgba(255, 255, 255, 0.6);
+    --tg-link: #8774e1;
+    --tg-kb: rgba(255, 255, 255, 0.14);
+    --tg-kb-hover: rgba(255, 255, 255, 0.2);
+    --tg-primary: 135, 116, 225;
+    --tg-success: 92, 200, 94;
+    --tg-danger: 255, 89, 90;
+    --tg-code: #ff595a;
+    --tg-quote: 135, 116, 225;
+    --tg-service: rgba(255, 255, 255, 0.12);
+  }
 }
 
 .tg-wall {
@@ -149,8 +143,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: rgba(255, 255, 255, 0.9);
-  background: linear-gradient(135deg, #7fa7c9, #9d8fd8 55%, #d99bb3);
+  color: rgba(0, 0, 0, 0.55);
+  background: #c7c7cc;
   font-size: 12px;
 }
 .tg-photo-placeholder svg { width: 28px; height: 28px; }
@@ -224,50 +218,12 @@
   height: 9px;
   opacity: 0.9;
 }
-.tg-custom-emoji {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  border-radius: 5px;
-  background: linear-gradient(135deg, #ffd66b, #ff8f6b);
-}
 .is-disabled { opacity: 0.5; cursor: default; }
 .is-hidden { opacity: 0.4; outline: 1px dashed rgba(255, 255, 255, 0.9); outline-offset: -3px; }
 
-/* Buttons inside a rich message body */
-.tg-rich-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0 2px;
-}
-.tg-rich-row.align-center { justify-content: center; }
-.tg-rich-row.align-right { justify-content: flex-end; }
-.tg-rich-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 100%;
-  padding: 7px 14px;
-  border: 0;
-  border-radius: 10px;
-  background: rgba(var(--tg-primary), 0.12);
-  color: rgb(var(--tg-primary));
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.tg-rich-btn.tg-style-primary { background: rgb(var(--tg-primary)); color: #fff; }
-.tg-rich-btn.tg-style-success { background: rgb(var(--tg-success)); color: #fff; }
-.tg-rich-btn.tg-style-danger { background: rgb(var(--tg-danger)); color: #fff; }
-.tg-rich-btn.tg-style-link { background: transparent; padding: 4px 2px; }
-.tg-rich-btn .tg-kb-corner { position: static; }
-
 /* Selection and connection points in the editor */
-.tg-kb-btn.is-selected, .tg-rich-btn.is-selected {
-  box-shadow: 0 0 0 2px var(--accent, #c96442), 0 0 0 5px rgba(201, 100, 66, 0.25);
+.tg-kb-btn.is-selected {
+  box-shadow: 0 0 0 2px var(--tg-bubble), 0 0 0 4px var(--text, #000);
   z-index: 1;
 }
 .tg-handle.react-flow__handle {
@@ -276,7 +232,7 @@
   height: 11px;
   right: -5px;
   border: 2px solid #fff;
-  background: var(--accent, #c96442);
+  background: #000;
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -306,5 +262,4 @@
   box-shadow: 0 1px 2px rgba(16, 35, 47, 0.15);
   overflow-wrap: anywhere;
 }
-.tg.is-dark .tg-out { color: #fff; }
 .tg-out .tg-time { color: var(--tg-time-out); }

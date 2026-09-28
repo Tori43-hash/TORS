@@ -32,8 +32,6 @@ export function Simulator() {
   const theme = useEditor((s) => s.theme)
   const manifest = useEditor((s) => s.manifest)
   const lang = useEditor((s) => s.lang)
-  const renderer = useEditor((s) => s.renderer)
-  const tgDark = useEditor((s) => s.tgDark)
   useEditor((s) => s.rendered) // re-render messages after the theme is re-analyzed
   const { setSimulator, notify } = useEditor.getState()
 
@@ -100,11 +98,12 @@ export function Simulator() {
   const update = (id: number, fn: (m: Extract<Msg, { kind: 'bot' }>) => Extract<Msg, { kind: 'bot' }>) =>
     setMsgs((all) => all.map((m) => (m.id === id && m.kind === 'bot' ? fn(m) : m)))
 
-  /** Opens a screen from a button: edits the same message, as the rich renderer does. */
+  /** Opens a screen from a button: the bot edits the same message, unless a
+   * photo appears or disappears — Telegram cannot edit that, so it sends anew. */
   const navigate = (id: number, to: Nav, push = true) => {
     const msg = msgs.find((m) => m.id === id)
     if (msg?.kind !== 'bot') return
-    const needsNewMessage = renderer === 'classic' && screenHasPhoto(theme.screens[msg.nav.screen]) !== screenHasPhoto(theme.screens[to.screen])
+    const needsNewMessage = screenHasPhoto(theme.screens[msg.nav.screen]) !== screenHasPhoto(theme.screens[to.screen])
     if (needsNewMessage) {
       setMsgs((all) => [...all.filter((m) => m.id !== id), { ...msg, id: ++seq, nav: to, history: push ? [...msg.history, msg.nav] : msg.history, pages: {} }])
       return
@@ -162,7 +161,8 @@ export function Simulator() {
 
   const pay = (id: number) => {
     setMsgs((m) => [...m.map((x) => (x.id === id && x.kind === 'invoice' ? { ...x, paid: true } : x)), { kind: 'service', id: ++seq, text: 'Вы успешно оплатили счёт' }])
-    if (manifest.events['billing.order.paid']) setTimeout(() => fireEvent('billing.order.paid'), 350)
+    const paid = Object.keys(manifest.events).find((e) => e.endsWith('.paid'))
+    if (paid) setTimeout(() => fireEvent(paid), 350)
   }
 
   const commands = useMemo(() => Object.keys(theme.commands ?? {}), [theme])
@@ -173,8 +173,8 @@ export function Simulator() {
         <div className="sim-controls-row">
           <strong>Проверка</strong>
           <span className="spacer" />
-          <button type="button" className="ghost-btn" onClick={() => { setMsgs([]); setPending(undefined); setNewUser(true) }}>Сначала</button>
-          <button type="button" className="ghost-btn" onClick={() => setSimulator(false)}>Закрыть</button>
+          <button type="button" className="btn" onClick={() => { setMsgs([]); setPending(undefined); setNewUser(true) }}>Сначала</button>
+          <button type="button" className="btn" onClick={() => setSimulator(false)}>Закрыть</button>
         </div>
         <div className="sim-controls-row">
           <Segmented value={newUser ? 'new' : 'old'} onChange={(v) => setNewUser(v === 'new')} options={[{ value: 'new', label: 'Новый пользователь' }, { value: 'old', label: 'Вернувшийся' }]} />
@@ -186,17 +186,17 @@ export function Simulator() {
           ))}
           <div className="sim-events">
             {Object.entries(manifest.events).map(([k, ev]) => (
-              <button key={k} type="button" className="ghost-btn" onClick={() => fireEvent(k)}>⚡ {ev.title}</button>
+              <button key={k} type="button" className="btn" onClick={() => fireEvent(k)}>{ev.title}</button>
             ))}
           </div>
         </details>
       </div>
 
-      <div className={`phone tg${tgDark ? ' is-dark' : ''}`}>
+      <div className="phone tg">
         <div className="phone-head">
-          <span className="phone-avatar">T</span>
+          <span className="phone-avatar">Б</span>
           <div>
-            <div className="phone-name">TORS Bot</div>
+            <div className="phone-name">Бот</div>
             <div className="phone-status">бот</div>
           </div>
         </div>
@@ -209,16 +209,15 @@ export function Simulator() {
               return (
                 <TgMessage
                   key={m.id}
-                  mode="classic"
                   time={m.time}
-                  r={{ screen: 'invoice', blocks: [{ kind: 'text', text: `**${m.title}**\nСчёт на оплату звёздами Telegram` }], keyboard: m.paid ? [] : [[{ ref: 'pay', label: 'Оплатить ⭐', kind: 'goto', style: 'primary' }]] }}
+                  r={{ screen: 'invoice', blocks: [{ kind: 'text', text: `**${m.title}**\nСчёт на оплату звёздами Telegram` }], keyboard: m.paid ? [] : [[{ ref: 'pay', label: 'Оплатить', kind: 'goto' }]] }}
                   onPress={() => pay(m.id)}
                 />
               )
             }
             const r = renderNav(m.nav, m.pages)
             return r ? (
-              <TgMessage key={m.id} r={r} mode={renderer} time={m.time} onPress={(b) => press(m, b)} />
+              <TgMessage key={m.id} r={r} time={m.time} onPress={(b) => press(m, b)} />
             ) : (
               <div key={m.id} className="tg-service">Экран «{m.nav.screen}» недоступен</div>
             )

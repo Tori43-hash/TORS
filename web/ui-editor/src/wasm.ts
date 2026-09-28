@@ -4,7 +4,6 @@ interface Bridge {
   load(theme: string, manifest: string): string
   render(id: string, options: string): string
   format(theme: string): string
-  standard(): string
 }
 
 declare global {
@@ -40,10 +39,6 @@ export function engine(): Promise<Bridge> {
       .catch(reject)
   })
   return bridge
-}
-
-export async function standard(): Promise<{ theme: Theme; manifest: Manifest }> {
-  return JSON.parse((await engine()).standard())
 }
 
 export function load(b: Bridge, theme: Theme, manifest: Manifest): LoadResult {

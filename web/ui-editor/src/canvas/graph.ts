@@ -194,6 +194,26 @@ export function layoutMissing(nodes: GNode[], edges: GEdge[], existing: Position
       }
     }
   }
+  // Screens nothing leads to yet (a module's starter screens, say) are laid
+  // out as their own trees to the right, rooted where nothing points to them.
+  const reached = Math.max(0, ...depth.values())
+  const pointed = new Set([...next.values()].flat())
+  const rest = () => nodes.filter((n) => n.type === 'screen' && !depth.has(n.id))
+  for (let left = rest(); left.length; left = rest()) {
+    const root = left.find((n) => !pointed.has(n.id) || !left.some((m) => (next.get(m.id) ?? []).includes(n.id))) ?? left[0]
+    const base = reached + 1
+    depth.set(root.id, base)
+    const q = [root.id]
+    while (q.length) {
+      const id = q.shift()!
+      for (const t of next.get(id) ?? []) {
+        if (!depth.has(t)) {
+          depth.set(t, depth.get(id)! + 1)
+          q.push(t)
+        }
+      }
+    }
+  }
   const maxDepth = Math.max(1, ...depth.values())
   const colX = (d: number) => (d === 0 ? 0 : 260 + (d - 1) * COL)
   const colY = new Map<number, number>()

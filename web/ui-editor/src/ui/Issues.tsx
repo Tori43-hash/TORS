@@ -10,6 +10,7 @@ export function Issues() {
   const select = useEditor((s) => s.select)
   const flow = useReactFlow()
   const [open, setOpen] = useState(false)
+  const empty = Object.keys(theme.screens).length === 0
   const errors = issues.filter((i) => i.level === 'error').length
   const warnings = issues.length - errors
 
@@ -30,6 +31,7 @@ export function Issues() {
     )
   }
 
+  if (empty) return null
   return (
     <div className={`issues${open ? ' is-open' : ''}`}>
       <button type="button" className={`issues-head${errors ? ' is-error' : warnings ? ' is-warn' : ' is-ok'}`} onClick={() => setOpen((v) => !v)} disabled={!issues.length}>
