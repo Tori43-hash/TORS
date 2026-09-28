@@ -1,0 +1,4 @@
+.git
+**/node_modules
+web/ui-editor/dist
+deploy/bot.env

@@ -1,0 +1,36 @@
+# The bot and PostgreSQL.
+#
+#   cp ~/Downloads/bot.json deploy/bot.json
+#   cp deploy/bot.env.example deploy/bot.env   # fill in the token and other secrets
+#   docker compose -f deploy/compose.yaml up -d --build
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        BOT: deploy/bot.json
+    env_file: bot.env
+    environment:
+      DATABASE_URL: postgres://tors:tors@db:5432/tors?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: tors
+      POSTGRES_PASSWORD: tors
+      POSTGRES_DB: tors
+    volumes:
+      - db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tors -d tors"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  db:
