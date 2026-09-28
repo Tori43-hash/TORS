@@ -52,6 +52,8 @@ type Outcome struct {
 	Title    string `json:"title,omitzero"`
 	Default  string `json:"default,omitzero"`
 	Terminal bool   `json:"terminal,omitzero"`
+	// Params the action passes to the outcome screen, e.g. the new subscription.
+	Params []string `json:"params,omitzero"`
 }
 
 // Condition is a named predicate for visible_if and disabled_if.

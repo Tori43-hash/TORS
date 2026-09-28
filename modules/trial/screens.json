@@ -1,0 +1,30 @@
+{
+  "trial_ok": {
+    "blocks": [
+      {
+        "text": {
+          "ru": "**Пробный период включён**\n\nПодписка уже в разделе «Мои подписки».",
+          "en": "**Your free trial is on**\n\nThe subscription is in “My subscriptions”."
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Открыть подписку", "en": "Open subscription" }, "goto": "sub", "params": { "id": "{{ .Params.id }}" } }],
+      [{ "text": { "ru": "В начало", "en": "Home" }, "home": true }]
+    ]
+  },
+  "trial_used": {
+    "blocks": [
+      {
+        "text": {
+          "ru": "Пробный период уже был использован.",
+          "en": "The free trial has already been used."
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Выбрать тариф", "en": "Choose a plan" }, "goto": "plans" }],
+      [{ "text": { "ru": "Назад", "en": "Back" }, "back": true }]
+    ]
+  }
+}

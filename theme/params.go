@@ -29,8 +29,9 @@ func IncomingParams(t *Theme, m *Manifest) map[string][]string {
 			case KindGoto:
 				add(b.Goto, keys...)
 			case KindAction:
-				for _, target := range t.ResolveOutcomes(m, b.Action, b.On) {
+				for name, target := range t.ResolveOutcomes(m, b.Action, b.On) {
 					add(target, keys...)
+					add(target, outcomeParams(m, b.Action, name)...)
 				}
 			}
 		})
@@ -46,8 +47,9 @@ func IncomingParams(t *Theme, m *Manifest) map[string][]string {
 			for _, name := range s.Data {
 				keys = append(keys, m.Data[name].Params...)
 			}
-			for _, target := range t.ResolveOutcomes(m, s.Input.Action, s.Input.On) {
+			for name, target := range t.ResolveOutcomes(m, s.Input.Action, s.Input.On) {
 				add(target, keys...)
+				add(target, outcomeParams(m, s.Input.Action, name)...)
 			}
 		}
 	}
@@ -56,6 +58,12 @@ func IncomingParams(t *Theme, m *Manifest) map[string][]string {
 		out[id] = slices.Sorted(maps.Keys(keys))
 	}
 	return out
+}
+
+// outcomeParams are the params an action adds for the screen of an outcome.
+func outcomeParams(m *Manifest, action, outcome string) []string {
+	o, _ := m.Actions[action].outcome(outcome)
+	return o.Params
 }
 
 // EachButton calls fn for every button a screen defines — body, keyboard,

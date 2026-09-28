@@ -10,6 +10,9 @@ type Info struct {
 	// Hidden modules are infrastructure: the builder adds them when needed.
 	Hidden   bool     `json:"hidden,omitzero"`
 	Requires []string `json:"requires,omitzero"`
+	// Needs lists namespaces the bot needs at least one module from, such as
+	// "billing.gateways" for a way to pay.
+	Needs []string `json:"needs,omitzero"`
 	// Host says where a guest module's config goes inside its app.
 	Host   *Host   `json:"host,omitzero"`
 	Config []Field `json:"config,omitzero"`

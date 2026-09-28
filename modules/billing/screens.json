@@ -1,0 +1,35 @@
+{
+  "plans": {
+    "data": { "plans": "catalog.plans" },
+    "blocks": [
+      { "text": { "ru": "**Тарифы**\n\nВыберите срок подписки.", "en": "**Plans**\n\nChoose a subscription period." } }
+    ],
+    "keyboard": [
+      {
+        "repeat": ".plans",
+        "columns": 1,
+        "button": {
+          "text": { "ru": "{{ .Title }} · {{ .Price }} ⭐", "en": "{{ .Title }} · {{ .Price }} ⭐" },
+          "goto": "plan",
+          "params": { "plan": "{{ .ID }}" }
+        }
+      },
+      [{ "text": { "ru": "Назад", "en": "Back" }, "back": true }]
+    ]
+  },
+  "plan": {
+    "data": { "plan": "catalog.plan" },
+    "blocks": [
+      {
+        "text": {
+          "ru": "**{{ .plan.Title }}**\n\nСрок: {{ .plan.Days }} {{ plural .plan.Days \"день\" \"дня\" \"дней\" }}\nТрафик: {{ if .plan.Traffic }}{{ .plan.Traffic | bytes }}{{ else }}без ограничений{{ end }}\nУстройств: {{ if .plan.Devices }}{{ .plan.Devices }}{{ else }}без ограничений{{ end }}\n\nСтоимость: **{{ .plan.Price }} ⭐**",
+          "en": "**{{ .plan.Title }}**\n\nPeriod: {{ .plan.Days }} {{ plural .plan.Days \"day\" \"days\" }}\nTraffic: {{ if .plan.Traffic }}{{ .plan.Traffic | bytes }}{{ else }}unlimited{{ end }}\nDevices: {{ if .plan.Devices }}{{ .plan.Devices }}{{ else }}unlimited{{ end }}\n\nPrice: **{{ .plan.Price }} ⭐**"
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Оплатить", "en": "Pay" }, "action": "billing.checkout", "params": { "plan": "{{ .Params.plan }}" } }],
+      [{ "text": { "ru": "Назад", "en": "Back" }, "back": true }]
+    ]
+  }
+}

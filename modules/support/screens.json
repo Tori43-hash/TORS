@@ -1,0 +1,17 @@
+{
+  "support": {
+    "data": { "support": "support.info" },
+    "blocks": [
+      {
+        "text": {
+          "ru": "**Поддержка**\n\nНапишите нам: {{ .support.Contact }}",
+          "en": "**Support**\n\nWrite to us: {{ .support.Contact }}"
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Написать", "en": "Write" }, "url": "{{ .support.URL }}" }],
+      [{ "text": { "ru": "Назад", "en": "Back" }, "back": true }]
+    ]
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "my_subs": {
+    "data": { "subs": "subscriptions.list" },
+    "empty": "no_subs",
+    "blocks": [{ "text": { "ru": "**Мои подписки**", "en": "**My subscriptions**" } }],
+    "keyboard": [
+      {
+        "repeat": ".subs",
+        "columns": 1,
+        "page_size": 6,
+        "button": {
+          "text": {
+            "ru": "{{ .Label }} · {{ if eq .Status \"active\" }}до {{ .ExpiresAt | date }}{{ else }}закончилась{{ end }}",
+            "en": "{{ .Label }} · {{ if eq .Status \"active\" }}until {{ .ExpiresAt | date }}{{ else }}ended{{ end }}"
+          },
+          "goto": "sub",
+          "params": { "id": "{{ .ID }}" }
+        }
+      },
+      [{ "text": { "ru": "Купить подписку", "en": "Buy a subscription" }, "goto": "plans" }],
+      [{ "text": { "ru": "Назад", "en": "Back" }, "back": true }]
+    ]
+  },
+  "no_subs": {
+    "blocks": [{ "text": { "ru": "У вас пока нет подписок.", "en": "You have no subscriptions yet." } }],
+    "keyboard": [
+      [{ "text": { "ru": "Выбрать тариф", "en": "Choose a plan" }, "goto": "plans" }],
+      [{ "text": { "ru": "Назад", "en": "Back" }, "back": true }]
+    ]
+  },
+  "sub": {
+    "data": { "sub": "subscriptions.get" },
+    "blocks": [
+      {
+        "text": {
+          "ru": "**{{ .sub.Label }}**\n\n{{ if eq .sub.Status \"active\" }}Действует до {{ .sub.ExpiresAt | date }}{{ else }}Закончилась {{ .sub.ExpiresAt | date }}{{ end }}\nТрафик: {{ .sub.Used | bytes }}{{ if .sub.Limit }} из {{ .sub.Limit | bytes }}{{ end }}\n\nСсылка для приложения:\n`{{ .sub.URL }}`",
+          "en": "**{{ .sub.Label }}**\n\n{{ if eq .sub.Status \"active\" }}Valid until {{ .sub.ExpiresAt | date }}{{ else }}Ended {{ .sub.ExpiresAt | date }}{{ end }}\nTraffic: {{ .sub.Used | bytes }}{{ if .sub.Limit }} of {{ .sub.Limit | bytes }}{{ end }}\n\nLink for the app:\n`{{ .sub.URL }}`"
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Скопировать ссылку", "en": "Copy link" }, "copy_text": "{{ .sub.URL }}" }],
+      [{ "text": { "ru": "Продлить", "en": "Renew" }, "action": "subscriptions.renew", "params": { "id": "{{ .Params.id }}" } }],
+      [
+        { "text": { "ru": "Переименовать", "en": "Rename" }, "goto": "sub_rename", "params": { "id": "{{ .Params.id }}" } },
+        { "text": { "ru": "Новая ссылка", "en": "New link" }, "goto": "sub_revoke", "params": { "id": "{{ .Params.id }}" } }
+      ],
+      [{ "text": { "ru": "Назад", "en": "Back" }, "back": true }]
+    ]
+  },
+  "sub_rename": {
+    "data": { "sub": "subscriptions.get" },
+    "input": { "action": "subscriptions.rename", "param": "label" },
+    "blocks": [
+      {
+        "text": {
+          "ru": "Отправьте новое название для «{{ .sub.Label }}». До 32 символов.",
+          "en": "Send a new name for “{{ .sub.Label }}”. Up to 32 characters."
+        }
+      }
+    ],
+    "keyboard": [[{ "text": { "ru": "Отмена", "en": "Cancel" }, "back": true }]]
+  },
+  "sub_revoke": {
+    "data": { "sub": "subscriptions.get" },
+    "blocks": [
+      {
+        "text": {
+          "ru": "Выпустить новую ссылку для «{{ .sub.Label }}»?\n\nСтарая перестанет работать, устройства нужно будет подключить заново.",
+          "en": "Issue a new link for “{{ .sub.Label }}”?\n\nThe old one will stop working and devices will need to reconnect."
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Выпустить", "en": "Issue" }, "action": "subscriptions.revoke", "params": { "id": "{{ .Params.id }}" }, "style": "danger" }],
+      [{ "text": { "ru": "Отмена", "en": "Cancel" }, "back": true }]
+    ]
+  },
+  "sub_paid": {
+    "blocks": [
+      {
+        "text": {
+          "ru": "**Оплата прошла**\n\nПодписка «{{ .Event.Label }}» действует до {{ .Event.ExpiresAt | date }}.\n\nСсылка для приложения:\n`{{ .Event.URL }}`",
+          "en": "**Payment received**\n\nSubscription “{{ .Event.Label }}” is valid until {{ .Event.ExpiresAt | date }}.\n\nLink for the app:\n`{{ .Event.URL }}`"
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Скопировать ссылку", "en": "Copy link" }, "copy_text": "{{ .Event.URL }}" }],
+      [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "goto": "my_subs" }]
+    ]
+  },
+  "sub_expiring": {
+    "blocks": [
+      {
+        "text": {
+          "ru": "Подписка «{{ .Event.Label }}» закончится через {{ .Event.DaysLeft }} {{ plural .Event.DaysLeft \"день\" \"дня\" \"дней\" }}.",
+          "en": "Subscription “{{ .Event.Label }}” ends in {{ .Event.DaysLeft }} {{ plural .Event.DaysLeft \"day\" \"days\" }}."
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Продлить", "en": "Renew" }, "action": "subscriptions.renew", "params": { "id": "{{ .Event.ID }}" } }]
+    ]
+  },
+  "sub_expired": {
+    "blocks": [
+      {
+        "text": {
+          "ru": "Подписка «{{ .Event.Label }}» закончилась.",
+          "en": "Subscription “{{ .Event.Label }}” has ended."
+        }
+      }
+    ],
+    "keyboard": [
+      [{ "text": { "ru": "Продлить", "en": "Renew" }, "action": "subscriptions.renew", "params": { "id": "{{ .Event.ID }}" } }]
+    ]
+  }
+}
