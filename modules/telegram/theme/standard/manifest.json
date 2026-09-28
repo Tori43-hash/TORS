@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "languages": ["ru", "en"],
+  "user": [
+    { "name": "FirstName", "type": "string", "title": "Имя", "sample": "Анна" },
+    { "name": "Username", "type": "string", "title": "Username", "sample": "anna" },
+    { "name": "ID", "type": "int", "title": "Telegram ID", "sample": 123456789 }
+  ],
+  "data": {
+    "subscriptions.summary": {
+      "title": "Подписки: сводка",
+      "fields": [
+        { "name": "ActiveCount", "type": "int", "title": "Активных", "sample": 2 },
+        { "name": "TotalCount", "type": "int", "title": "Всего", "sample": 3 },
+        { "name": "NearestExpiry", "type": "time", "title": "Ближайшее окончание", "sample": "2026-10-12T12:00:00Z" }
+      ]
+    },
+    "subscriptions.list": {
+      "title": "Подписки: список",
+      "list": true,
+      "fields": [
+        { "name": "ID", "type": "int", "title": "ID" },
+        { "name": "Label", "type": "string", "title": "Название" },
+        { "name": "Status", "type": "string", "title": "Статус" },
+        { "name": "ExpiresAt", "type": "time", "title": "Действует до" },
+        { "name": "Used", "type": "bytes", "title": "Использовано" },
+        { "name": "Limit", "type": "bytes", "title": "Лимит трафика" }
+      ],
+      "samples": [
+        { "ID": 17, "Label": "Телефон", "Status": "active", "ExpiresAt": "2026-10-28T12:00:00Z", "Used": 13421772800, "Limit": 214748364800 },
+        { "ID": 18, "Label": "Ноутбук", "Status": "active", "ExpiresAt": "2026-10-12T12:00:00Z", "Used": 2147483648, "Limit": 107374182400 },
+        { "ID": 21, "Label": "Роутер", "Status": "expired", "ExpiresAt": "2026-09-01T12:00:00Z", "Used": 0, "Limit": 214748364800 }
+      ]
+    },
+    "subscriptions.get": {
+      "title": "Подписка",
+      "params": ["id"],
+      "fields": [
+        { "name": "ID", "type": "int", "title": "ID" },
+        { "name": "Label", "type": "string", "title": "Название" },
+        { "name": "Status", "type": "string", "title": "Статус" },
+        { "name": "ExpiresAt", "type": "time", "title": "Действует до" },
+        { "name": "Used", "type": "bytes", "title": "Использовано" },
+        { "name": "Limit", "type": "bytes", "title": "Лимит трафика" },
+        { "name": "Devices", "type": "int", "title": "Устройств подключено" },
+        { "name": "DeviceLimit", "type": "int", "title": "Лимит устройств" },
+        { "name": "URL", "type": "url", "title": "Ссылка подписки" }
+      ],
+      "samples": [
+        { "ID": 17, "Label": "Телефон", "Status": "active", "ExpiresAt": "2026-10-28T12:00:00Z", "Used": 13421772800, "Limit": 214748364800, "Devices": 2, "DeviceLimit": 3, "URL": "https://sub.example.com/Xk2p9QaL" }
+      ]
+    },
+    "catalog.plans": {
+      "title": "Тарифы",
+      "list": true,
+      "fields": [
+        { "name": "ID", "type": "string", "title": "ID" },
+        { "name": "Title", "type": "string", "title": "Название" },
+        { "name": "Period", "type": "string", "title": "Срок" },
+        { "name": "Traffic", "type": "bytes", "title": "Трафик (0 — без ограничений)" },
+        { "name": "Devices", "type": "int", "title": "Устройств" },
+        { "name": "Price", "type": "int", "title": "Цена, ⭐" }
+      ],
+      "samples": [
+        { "ID": "month", "Title": "1 месяц", "Period": "30 дней", "Traffic": 214748364800, "Devices": 3, "Price": 150 },
+        { "ID": "quarter", "Title": "3 месяца", "Period": "90 дней", "Traffic": 644245094400, "Devices": 3, "Price": 400 },
+        { "ID": "year", "Title": "12 месяцев", "Period": "365 дней", "Traffic": 0, "Devices": 5, "Price": 1400 }
+      ]
+    },
+    "catalog.plan": {
+      "title": "Тариф",
+      "params": ["plan"],
+      "fields": [
+        { "name": "ID", "type": "string", "title": "ID" },
+        { "name": "Title", "type": "string", "title": "Название" },
+        { "name": "Period", "type": "string", "title": "Срок" },
+        { "name": "Traffic", "type": "bytes", "title": "Трафик (0 — без ограничений)" },
+        { "name": "Devices", "type": "int", "title": "Устройств" },
+        { "name": "Price", "type": "int", "title": "Цена, ⭐" }
+      ],
+      "samples": [
+        { "ID": "month", "Title": "1 месяц", "Period": "30 дней", "Traffic": 214748364800, "Devices": 3, "Price": 150 }
+      ]
+    },
+    "referral.stats": {
+      "title": "Рефералы",
+      "fields": [
+        { "name": "Link", "type": "url", "title": "Реферальная ссылка", "sample": "https://t.me/tors_bot?start=ref_123456789" },
+        { "name": "Invited", "type": "int", "title": "Приглашено", "sample": 4 },
+        { "name": "Paid", "type": "int", "title": "Оплатили", "sample": 2 },
+        { "name": "BonusDays", "type": "int", "title": "Бонусных дней", "sample": 14 }
+      ]
+    },
+    "wallet.balance": {
+      "title": "Баланс",
+      "fields": [
+        { "name": "Balance", "type": "int", "title": "Баланс, ⭐", "sample": 250 }
+      ]
+    },
+    "support.info": {
+      "title": "Поддержка",
+      "fields": [
+        { "name": "Contact", "type": "string", "title": "Контакт", "sample": "@tors_support" }
+      ]
+    }
+  },
+  "actions": {
+    "trial.start": {
+      "title": "Начать пробный период",
+      "label": { "ru": "Пробный период", "en": "Free trial" },
+      "outcomes": [
+        { "name": "ok", "title": "Выдан", "default": "trial_started" },
+        { "name": "already_used", "title": "Уже был", "default": "trial_used" },
+        { "name": "need_channel", "title": "Нужна подписка на канал", "default": "join_channel" }
+      ]
+    },
+    "billing.checkout": {
+      "title": "Оплатить тариф",
+      "params": ["plan"],
+      "outcomes": [
+        { "name": "invoice", "title": "Отправлен счёт", "terminal": true },
+        { "name": "limit_reached", "title": "Лимит подписок", "default": "limit_reached" }
+      ]
+    },
+    "billing.renew": {
+      "title": "Продлить подписку",
+      "params": ["id"],
+      "outcomes": [
+        { "name": "invoice", "title": "Отправлен счёт", "terminal": true }
+      ]
+    },
+    "subscriptions.revoke": {
+      "title": "Перевыпустить ссылку",
+      "params": ["id"],
+      "outcomes": [
+        { "name": "ok", "title": "Готово", "default": "sub_card" }
+      ]
+    },
+    "subscriptions.rename": {
+      "title": "Переименовать подписку",
+      "params": ["id", "label"],
+      "input": true,
+      "outcomes": [
+        { "name": "ok", "title": "Готово", "default": "sub_card" },
+        { "name": "invalid", "title": "Недопустимое название", "default": "rename_error" }
+      ]
+    },
+    "promo.apply": {
+      "title": "Применить промокод",
+      "params": ["code"],
+      "input": true,
+      "outcomes": [
+        { "name": "ok", "title": "Применён", "default": "promo_ok" },
+        { "name": "invalid", "title": "Нет такого", "default": "promo_invalid" },
+        { "name": "used", "title": "Уже использован", "default": "promo_used" }
+      ]
+    },
+    "language.set": {
+      "title": "Сменить язык",
+      "params": ["lang"],
+      "outcomes": [
+        { "name": "ok", "title": "Готово", "default": "main_menu" }
+      ]
+    }
+  },
+  "conditions": {
+    "trial.available": { "title": "Пробный период доступен", "sample": true },
+    "subscriptions.any": { "title": "Есть подписки", "sample": true },
+    "subscriptions.can_revoke": { "title": "Панель умеет перевыпускать ссылку", "sample": true },
+    "wallet.enabled": { "title": "Баланс включён", "sample": false }
+  },
+  "events": {
+    "billing.order.paid": {
+      "title": "Оплата прошла",
+      "default": "payment_success",
+      "fields": [
+        { "name": "PlanTitle", "type": "string", "title": "Тариф", "sample": "1 месяц" },
+        { "name": "SubLabel", "type": "string", "title": "Подписка", "sample": "Телефон" },
+        { "name": "ExpiresAt", "type": "time", "title": "Действует до", "sample": "2026-10-28T12:00:00Z" }
+      ]
+    },
+    "subscriptions.expiring": {
+      "title": "Подписка скоро закончится",
+      "default": "expiring_notice",
+      "fields": [
+        { "name": "ID", "type": "int", "title": "ID подписки", "sample": 17 },
+        { "name": "Label", "type": "string", "title": "Подписка", "sample": "Телефон" },
+        { "name": "ExpiresAt", "type": "time", "title": "Действует до", "sample": "2026-10-01T12:00:00Z" },
+        { "name": "DaysLeft", "type": "int", "title": "Осталось дней", "sample": 3 }
+      ]
+    },
+    "subscriptions.expired": {
+      "title": "Подписка закончилась",
+      "default": "expired_notice",
+      "fields": [
+        { "name": "ID", "type": "int", "title": "ID подписки", "sample": 21 },
+        { "name": "Label", "type": "string", "title": "Подписка", "sample": "Роутер" }
+      ]
+    }
+  }
+}

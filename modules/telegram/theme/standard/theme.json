@@ -1,0 +1,349 @@
+{
+  "version": 1,
+  "commands": {
+    "start": { "default": "main_menu", "new_user": "welcome" },
+    "menu": "main_menu",
+    "help": "guide"
+  },
+  "fragments": {
+    "back": [[{ "text": { "ru": "‹ Назад", "en": "‹ Back" }, "back": true }]],
+    "home": [[{ "text": { "ru": "В меню", "en": "Menu" }, "home": true }]]
+  },
+  "screens": {
+    "welcome": {
+      "blocks": [
+        { "photo": "assets/welcome.jpg" },
+        { "text": {
+          "ru": "**Добро пожаловать, {{ .User.FirstName }}!**\n\nБыстрый и стабильный VPN. Подключение за минуту, оплата звёздами Telegram.",
+          "en": "**Welcome, {{ .User.FirstName }}!**\n\nFast and stable VPN. Set up in a minute, pay with Telegram Stars."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Попробовать бесплатно", "en": "Try for free" }, "emoji": "🎁", "action": "trial.start", "style": "success", "visible_if": "trial.available" }],
+        [{ "text": { "ru": "Тарифы", "en": "Plans" }, "emoji": "🛒", "goto": "plans" },
+         { "text": { "ru": "Меню", "en": "Menu" }, "emoji": "☰", "goto": "main_menu" }]
+      ]
+    },
+    "main_menu": {
+      "data": { "Subs": "subscriptions.summary" },
+      "blocks": [
+        { "text": {
+          "ru": "**Главное меню**\n\nАктивных подписок: {{ .Subs.ActiveCount }}",
+          "en": "**Main menu**\n\nActive subscriptions: {{ .Subs.ActiveCount }}"
+        } },
+        { "buttons": { "align": "center", "items": [
+          { "text": { "ru": "Как подключиться?", "en": "How to connect?" }, "goto": "guide", "style": "link" }
+        ] } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Купить подписку", "en": "Buy subscription" }, "emoji": "🛒", "goto": "plans", "style": "success" }],
+        [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "emoji": "🔑", "goto": "my_subs" },
+         { "text": { "ru": "Пригласить", "en": "Invite" }, "emoji": "🎁", "goto": "referral" }],
+        [{ "text": { "ru": "Промокод", "en": "Promo code" }, "emoji": "🎟", "goto": "promo_enter" },
+         { "text": { "ru": "Поддержка", "en": "Support" }, "emoji": "💬", "goto": "support" }],
+        [{ "text": { "ru": "Язык", "en": "Language" }, "emoji": "🌐", "goto": "language" }]
+      ]
+    },
+    "plans": {
+      "data": { "Plans": "catalog.plans" },
+      "blocks": [
+        { "text": {
+          "ru": "**Выберите тариф**\n\nВсе тарифы — без ограничения скорости.",
+          "en": "**Choose a plan**\n\nAll plans come with unlimited speed."
+        } }
+      ],
+      "keyboard": [
+        { "repeat": ".Plans", "columns": 1, "button": { "text": { "ru": "{{ .Title }} — {{ .Price }} ⭐", "en": "{{ .Title }} — {{ .Price }} ⭐" }, "goto": "plan_card", "params": { "plan": "{{ .ID }}" } } },
+        { "use": "back" }
+      ]
+    },
+    "plan_card": {
+      "data": { "Plan": "catalog.plan" },
+      "blocks": [
+        { "text": {
+          "ru": "**{{ .Plan.Title }}**\n\n• Срок: {{ .Plan.Period }}\n• Трафик: {{ if .Plan.Traffic }}{{ .Plan.Traffic | bytes }}{{ else }}без ограничений{{ end }}\n• Устройств: {{ .Plan.Devices }}\n\nСтоимость: **{{ .Plan.Price }} ⭐**",
+          "en": "**{{ .Plan.Title }}**\n\n• Period: {{ .Plan.Period }}\n• Traffic: {{ if .Plan.Traffic }}{{ .Plan.Traffic | bytes }}{{ else }}unlimited{{ end }}\n• Devices: {{ .Plan.Devices }}\n\nPrice: **{{ .Plan.Price }} ⭐**"
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Оплатить {{ .Plan.Price }} ⭐", "en": "Pay {{ .Plan.Price }} ⭐" }, "action": "billing.checkout", "params": { "plan": "{{ .Params.plan }}" }, "style": "success" }],
+        { "use": "back" }
+      ]
+    },
+    "my_subs": {
+      "data": { "Subs": "subscriptions.list" },
+      "empty": "no_subs",
+      "blocks": [
+        { "text": { "ru": "**Мои подписки**", "en": "**My subscriptions**" } }
+      ],
+      "keyboard": [
+        { "repeat": ".Subs", "columns": 1, "page_size": 5, "button": { "text": { "ru": "{{ .Label }} · до {{ .ExpiresAt | date }}", "en": "{{ .Label }} · until {{ .ExpiresAt | date }}" }, "goto": "sub_card", "params": { "id": "{{ .ID }}" } } },
+        [{ "text": { "ru": "Новая подписка", "en": "New subscription" }, "emoji": "➕", "goto": "plans" }],
+        { "use": "back" }
+      ]
+    },
+    "no_subs": {
+      "blocks": [
+        { "text": { "ru": "У вас пока нет подписок.", "en": "You have no subscriptions yet." } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Купить подписку", "en": "Buy subscription" }, "emoji": "🛒", "goto": "plans", "style": "success" }],
+        [{ "text": { "ru": "Попробовать бесплатно", "en": "Try for free" }, "emoji": "🎁", "action": "trial.start", "visible_if": "trial.available" }],
+        { "use": "back" }
+      ]
+    },
+    "sub_card": {
+      "data": { "Sub": "subscriptions.get" },
+      "blocks": [
+        { "text": {
+          "ru": "**{{ .Sub.Label }}**\n\nДействует до {{ .Sub.ExpiresAt | date }}\nТрафик: {{ .Sub.Used | bytes }} из {{ .Sub.Limit | bytes }}\nУстройств: {{ .Sub.Devices }} из {{ .Sub.DeviceLimit }}",
+          "en": "**{{ .Sub.Label }}**\n\nValid until {{ .Sub.ExpiresAt | date }}\nTraffic: {{ .Sub.Used | bytes }} of {{ .Sub.Limit | bytes }}\nDevices: {{ .Sub.Devices }} of {{ .Sub.DeviceLimit }}"
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Скопировать ссылку", "en": "Copy link" }, "emoji": "📋", "copy_text": "{{ .Sub.URL }}" }],
+        [{ "text": { "ru": "Продлить", "en": "Renew" }, "emoji": "🔄", "action": "billing.renew", "params": { "id": "{{ .Params.id }}" }, "style": "success" }],
+        [{ "text": { "ru": "Переименовать", "en": "Rename" }, "emoji": "✏️", "goto": "sub_rename", "params": { "id": "{{ .Params.id }}" } },
+         { "text": { "ru": "Новая ссылка", "en": "New link" }, "emoji": "♻️", "goto": "revoke_confirm", "params": { "id": "{{ .Params.id }}" }, "visible_if": "subscriptions.can_revoke" }],
+        { "use": "back" }
+      ]
+    },
+    "revoke_confirm": {
+      "data": { "Sub": "subscriptions.get" },
+      "blocks": [
+        { "text": {
+          "ru": "Перевыпустить ссылку для «{{ .Sub.Label }}»?\n\nСтарая ссылка перестанет работать, устройства нужно будет подключить заново.",
+          "en": "Issue a new link for “{{ .Sub.Label }}”?\n\nThe old link will stop working and devices will need to reconnect."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Перевыпустить", "en": "Issue new link" }, "action": "subscriptions.revoke", "params": { "id": "{{ .Params.id }}" }, "style": "danger" }],
+        [{ "text": { "ru": "Отмена", "en": "Cancel" }, "back": true }]
+      ]
+    },
+    "sub_rename": {
+      "data": { "Sub": "subscriptions.get" },
+      "input": { "action": "subscriptions.rename", "param": "label" },
+      "blocks": [
+        { "text": {
+          "ru": "Отправьте новое название для «{{ .Sub.Label }}».",
+          "en": "Send a new name for “{{ .Sub.Label }}”."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Отмена", "en": "Cancel" }, "back": true }]
+      ]
+    },
+    "rename_error": {
+      "blocks": [
+        { "text": { "ru": "Название должно быть от 1 до 32 символов.", "en": "The name must be 1 to 32 characters long." } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Попробовать ещё раз", "en": "Try again" }, "goto": "sub_rename", "params": { "id": "{{ .Params.id }}" } }]
+      ]
+    },
+    "trial_started": {
+      "blocks": [
+        { "text": {
+          "ru": "🎉 **Пробный период активирован!**\n\n3 дня бесплатно. Подписка уже в разделе «Мои подписки».",
+          "en": "🎉 **Your free trial is active!**\n\n3 days for free. The subscription is in “My subscriptions”."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "emoji": "🔑", "goto": "my_subs", "style": "success" }],
+        [{ "text": { "ru": "Как подключиться", "en": "How to connect" }, "emoji": "📖", "goto": "guide" }],
+        { "use": "home" }
+      ]
+    },
+    "trial_used": {
+      "blocks": [
+        { "text": { "ru": "Пробный период уже был использован. Выберите тариф, чтобы продолжить.", "en": "You have already used the free trial. Choose a plan to continue." } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Тарифы", "en": "Plans" }, "emoji": "🛒", "goto": "plans", "style": "success" }],
+        { "use": "back" }
+      ]
+    },
+    "join_channel": {
+      "blocks": [
+        { "text": { "ru": "Чтобы получить пробный период, подпишитесь на наш канал.", "en": "Subscribe to our channel to get the free trial." } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Открыть канал", "en": "Open channel" }, "emoji": "📣", "url": "https://t.me/tors_channel" }],
+        [{ "text": { "ru": "Я подписался", "en": "I have subscribed" }, "emoji": "✅", "action": "trial.start", "style": "primary" }],
+        { "use": "back" }
+      ]
+    },
+    "limit_reached": {
+      "blocks": [
+        { "text": { "ru": "Достигнут лимит подписок на один аккаунт.", "en": "You have reached the subscription limit for one account." } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "emoji": "🔑", "goto": "my_subs" }],
+        { "use": "back" }
+      ]
+    },
+    "payment_success": {
+      "blocks": [
+        { "text": {
+          "ru": "✅ **Оплата прошла!**\n\nПодписка «{{ .Event.SubLabel }}» активна до {{ .Event.ExpiresAt | date }}.",
+          "en": "✅ **Payment received!**\n\nSubscription “{{ .Event.SubLabel }}” is active until {{ .Event.ExpiresAt | date }}."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "emoji": "🔑", "goto": "my_subs", "style": "success" }],
+        [{ "text": { "ru": "Как подключиться", "en": "How to connect" }, "emoji": "📖", "goto": "guide" }]
+      ]
+    },
+    "expiring_notice": {
+      "blocks": [
+        { "text": {
+          "ru": "⏳ Подписка «{{ .Event.Label }}» закончится через {{ .Event.DaysLeft }} {{ plural .Event.DaysLeft \"день\" \"дня\" \"дней\" }}.",
+          "en": "⏳ Subscription “{{ .Event.Label }}” ends in {{ .Event.DaysLeft }} {{ plural .Event.DaysLeft \"day\" \"days\" }}."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Продлить", "en": "Renew" }, "emoji": "🔄", "action": "billing.renew", "params": { "id": "{{ .Event.ID }}" }, "style": "success" }]
+      ]
+    },
+    "expired_notice": {
+      "blocks": [
+        { "text": { "ru": "Подписка «{{ .Event.Label }}» закончилась.", "en": "Subscription “{{ .Event.Label }}” has ended." } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Продлить", "en": "Renew" }, "emoji": "🔄", "action": "billing.renew", "params": { "id": "{{ .Event.ID }}" }, "style": "success" }],
+        [{ "text": { "ru": "Тарифы", "en": "Plans" }, "emoji": "🛒", "goto": "plans" }]
+      ]
+    },
+    "referral": {
+      "data": { "Ref": "referral.stats" },
+      "blocks": [
+        { "text": {
+          "ru": "**Пригласите друзей**\n\nЗа каждого друга, оплатившего подписку, — 7 дней в подарок.\n\nПриглашено: {{ .Ref.Invited }} · Оплатили: {{ .Ref.Paid }}",
+          "en": "**Invite friends**\n\nGet 7 free days for every friend who buys a subscription.\n\nInvited: {{ .Ref.Invited }} · Paid: {{ .Ref.Paid }}"
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Скопировать ссылку", "en": "Copy link" }, "emoji": "📋", "copy_text": "{{ .Ref.Link }}" }],
+        { "use": "back" }
+      ]
+    },
+    "guide": {
+      "blocks": [
+        { "text": { "ru": "**Как подключиться**\n\nВыберите устройство:", "en": "**How to connect**\n\nChoose your device:" } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "iPhone", "en": "iPhone" }, "emoji": "📱", "goto": "guide_ios" },
+         { "text": { "ru": "Android", "en": "Android" }, "emoji": "🤖", "goto": "guide_android" }],
+        [{ "text": { "ru": "Windows", "en": "Windows" }, "emoji": "💻", "goto": "guide_windows" },
+         { "text": { "ru": "macOS", "en": "macOS" }, "emoji": "🍏", "goto": "guide_macos" }],
+        { "use": "back" }
+      ]
+    },
+    "guide_ios": {
+      "blocks": [
+        { "text": {
+          "ru": "**iPhone и iPad**\n\n1. Установите VPN-клиент из App Store.\n2. Скопируйте ссылку в разделе «Мои подписки».\n3. Добавьте ссылку в клиент и включите VPN.",
+          "en": "**iPhone and iPad**\n\n1. Install a VPN client from the App Store.\n2. Copy the link in “My subscriptions”.\n3. Add the link to the client and turn on VPN."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "emoji": "🔑", "goto": "my_subs" }],
+        { "use": "back" }
+      ]
+    },
+    "guide_android": {
+      "blocks": [
+        { "text": {
+          "ru": "**Android**\n\n1. Установите VPN-клиент из Google Play.\n2. Скопируйте ссылку в разделе «Мои подписки».\n3. Добавьте ссылку в клиент и включите VPN.",
+          "en": "**Android**\n\n1. Install a VPN client from Google Play.\n2. Copy the link in “My subscriptions”.\n3. Add the link to the client and turn on VPN."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "emoji": "🔑", "goto": "my_subs" }],
+        { "use": "back" }
+      ]
+    },
+    "guide_windows": {
+      "blocks": [
+        { "text": {
+          "ru": "**Windows**\n\n1. Скачайте VPN-клиент для Windows.\n2. Скопируйте ссылку в разделе «Мои подписки».\n3. Добавьте ссылку в клиент и включите VPN.",
+          "en": "**Windows**\n\n1. Download a VPN client for Windows.\n2. Copy the link in “My subscriptions”.\n3. Add the link to the client and turn on VPN."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "emoji": "🔑", "goto": "my_subs" }],
+        { "use": "back" }
+      ]
+    },
+    "guide_macos": {
+      "blocks": [
+        { "text": {
+          "ru": "**macOS**\n\n1. Установите VPN-клиент из Mac App Store.\n2. Скопируйте ссылку в разделе «Мои подписки».\n3. Добавьте ссылку в клиент и включите VPN.",
+          "en": "**macOS**\n\n1. Install a VPN client from the Mac App Store.\n2. Copy the link in “My subscriptions”.\n3. Add the link to the client and turn on VPN."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Мои подписки", "en": "My subscriptions" }, "emoji": "🔑", "goto": "my_subs" }],
+        { "use": "back" }
+      ]
+    },
+    "support": {
+      "data": { "Support": "support.info" },
+      "blocks": [
+        { "text": {
+          "ru": "**Поддержка**\n\nНапишите нам: {{ .Support.Contact }}. Отвечаем каждый день с 10:00 до 22:00.",
+          "en": "**Support**\n\nWrite to us: {{ .Support.Contact }}. We reply every day from 10:00 to 22:00."
+        } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Написать", "en": "Write" }, "emoji": "💬", "url": "https://t.me/tors_support" }],
+        { "use": "back" }
+      ]
+    },
+    "promo_enter": {
+      "input": { "action": "promo.apply", "param": "code" },
+      "blocks": [
+        { "text": { "ru": "Отправьте промокод сообщением.", "en": "Send your promo code as a message." } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Отмена", "en": "Cancel" }, "back": true }]
+      ]
+    },
+    "promo_ok": {
+      "blocks": [
+        { "text": { "ru": "🎁 Промокод применён!", "en": "🎁 Promo code applied!" } }
+      ],
+      "keyboard": [
+        { "use": "home" }
+      ]
+    },
+    "promo_invalid": {
+      "blocks": [
+        { "text": { "ru": "Такого промокода нет.", "en": "This promo code does not exist." } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Ввести другой", "en": "Enter another" }, "goto": "promo_enter" }],
+        { "use": "home" }
+      ]
+    },
+    "promo_used": {
+      "blocks": [
+        { "text": { "ru": "Этот промокод уже использован.", "en": "This promo code has already been used." } }
+      ],
+      "keyboard": [
+        { "use": "home" }
+      ]
+    },
+    "language": {
+      "blocks": [
+        { "text": { "ru": "Выберите язык", "en": "Choose language" } }
+      ],
+      "keyboard": [
+        [{ "text": { "ru": "Русский", "en": "Русский" }, "emoji": "🇷🇺", "action": "language.set", "params": { "lang": "ru" } },
+         { "text": { "ru": "English", "en": "English" }, "emoji": "🇬🇧", "action": "language.set", "params": { "lang": "en" } }],
+        { "use": "back" }
+      ]
+    }
+  }
+}

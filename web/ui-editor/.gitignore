@@ -1,0 +1,4 @@
+node_modules/
+dist/
+public/tors-theme.wasm
+public/wasm_exec.js
