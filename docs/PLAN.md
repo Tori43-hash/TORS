@@ -14,14 +14,17 @@
   Telegram, база данных, очередь задач, панели (Remnawave, 3x-UI), платёжные шлюзы, тарифы, подписки,
   триал, рефералка, промокоды, рассылки, админка.
 - Модули делятся на **приложения** (apps, верхний уровень: `telegram`, `panels`, `billing`, …) и
-  **гостевые модули** в пространствах имён своих хостов (`panels.providers.remnawave`, `billing.gateways.yookassa`,
+  **гостевые модули** в пространствах имён своих хостов (`panels.providers.remnawave`, `billing.gateways.telegram_stars`,
   `telegram.handlers.shop`, …).
 - Панели скрыты за контрактом `panels.Provider` с **декларативным идемпотентным** `EnsureAccount(spec)` и
   **опциональными возможностями** (capability-интерфейсы). Remnawave и 3x-UI — два гостевых модуля одного хоста.
 - Бизнес-поток «оплата → выдача подписки» надёжен: подтверждение платежа и постановка события в очередь
   происходят в одной транзакции (transactional outbox), обработчики идемпотентны.
-- MVP = фазы 0–5 (ядро → инфраструктура → Telegram → домен + Remnawave → биллинг). 3x-UI — фаза 7,
-  и она не требует изменений ни в ядре, ни в домене.
+- MVP = фазы 0–5 (ядро → инфраструктура → Telegram → домен + Remnawave → биллинг). Mini App — фаза 7,
+  3x-UI — фаза 8; обе не требуют изменений ни в ядре, ни в домене.
+- **Принятые решения** (§20): оплата — только Telegram Stars; у пользователя может быть несколько подписок;
+  внутренний баланс и админка — необязательные модули; тарифы — в конфиге; языки — ru (по умолчанию) и en;
+  импорт пользователей из панели не нужен; Mini App планируется; запускается одна копия бота.
 
 ---
 
@@ -34,13 +37,15 @@
 3. Новая панель (3x-UI, позже — Marzban и др.) = новый гостевой модуль, без изменений домена и UI.
 4. Новый платёжный шлюз = новый гостевой модуль.
 5. Надёжность денег: ни одна оплата не теряется и не засчитывается дважды.
-6. Задел под другие «витрины» (Telegram Mini App, веб-кабинет) — домен не зависит от Telegram.
+6. Telegram Mini App (запланирован) — вторая «витрина» над тем же доменом; домен не зависит от чата Telegram.
 
 **Не-цели (на старте)**
 
 - Динамическая загрузка плагинов в рантайме (`plugin`, go-plugin) — см. ADR-001.
 - Мультитенантность (несколько независимых магазинов в одном процессе).
-- Горизонтальное масштабирование на много инстансов — архитектура не мешает, но в MVP не реализуется.
+- Горизонтальное масштабирование: работает одна копия процесса. Архитектура не мешает запустить несколько копий позже.
+- Импорт существующих пользователей из панели.
+- Платёжные шлюзы, кроме Telegram Stars (добавляются потом отдельными модулями без изменения домена).
 - Собственный DSL конфигурации (аналог Caddyfile) — достаточно JSON + YAML-адаптера.
 
 ---
@@ -59,7 +64,7 @@
 | Нативный JSON + адаптеры (Caddyfile) | Нативный JSON + адаптер YAML | |
 | `{env.X}` плейсхолдеры | `{env.X}`, `{file./path}` | Секреты не в конфиге |
 | xcaddy (кастомные сборки) | свой `main.go` с импортами → позже `xtors` | |
-| Admin API `/load`, атомарная перезагрузка с откатом | `SIGHUP` / `tors reload` (фаза 8) | Жизненный цикл проектируется под reload сразу |
+| Admin API `/load`, атомарная перезагрузка с откатом | `SIGHUP` / `tors reload` (фаза 9) | Жизненный цикл проектируется под reload сразу |
 | `caddyevents` — отдельное приложение | **Шина событий в ядре** + гарантированная доставка в модуле `jobs` | В боте события — основной способ интеграции фич, поэтому шина входит в «полезный минимум» (≈200 строк, только stdlib) |
 
 ---
@@ -128,14 +133,15 @@ type HealthChecker interface{ Health(context.Context) error }
 |---|---|---|
 | `""` (apps) | ядро | `database`, `jobs`, `kv`, `http`, `i18n`, `users`, `catalog`, `panels`, `billing`, `subscriptions`, `telegram`, `trial`, `referral`, … |
 | `config.adapters` | ядро | `yaml` |
-| `kv.stores` | `kv` | `memory`, `postgres`, `redis` |
+| `kv.stores` | `kv` | `memory`, `postgres` (позже при необходимости — `redis`) |
 | `catalog.sources` | `catalog` | `config`, `db` |
 | `panels.providers` | `panels` | `remnawave`, `3xui`, `fake` |
-| `billing.gateways` | `billing` | `telegram_stars`, `yookassa`, `cryptobot`, `balance`, `fake` |
+| `billing.gateways` | `billing` | `telegram_stars`, `balance` (из модуля `wallet`), `fake`; позже — любые другие |
 | `billing.pricing` | `billing` | `promo`, `referral_discount` |
 | `telegram.transports` | `telegram` | `polling`, `webhook` |
 | `telegram.middleware` | `telegram` | `recover`, `logging`, `ratelimit`, `users`, `i18n`, `ban`, `require_channel` |
-| `telegram.handlers` | `telegram` | `start`, `main_menu`, `shop`, `my_subscriptions`, `trial`, `referral`, `promo`, `support`, `language`, `admin` |
+| `telegram.handlers` | `telegram` | `start`, `main_menu`, `shop`, `my_subscriptions`, `trial`, `referral`, `promo`, `wallet`, `support`, `language`, `admin` |
+| `webapp.endpoints` | `webapp` | API и экраны Mini App: `shop`, `subscriptions`, `referral`, `wallet`, … |
 
 > Имя пакета Go не может начинаться с цифры, поэтому модуль `panels.providers.3xui` живёт в пакете `xui`.
 
@@ -170,7 +176,7 @@ stateDiagram-v2
 (другие модули могут звать его методы, HTTP-маршруты уже смонтированы). `Start` — только запуск фоновых
 процессов (поллинг, воркеры, cron). Никаких глобальных переменных состояния — иначе не будет hot reload.
 
-**Hot reload (фаза 8):** новая конфигурация провижинится целиком параллельно со старой; при успехе
+**Hot reload (фаза 9):** новая конфигурация провижинится целиком параллельно со старой; при успехе
 старая останавливается, новая стартует; при ошибке — новая откатывается, старая продолжает работать.
 Для дорогих разделяемых ресурсов (пул БД) — `tors.UsagePool` по аналогии с Caddy.
 
@@ -256,9 +262,9 @@ func Emit(ctx context.Context, bus *Events, e Event) error
 
 ### 3.7. CLI
 
-`tors run | validate | adapt | list-modules [--namespace …] | version | reload (фаза 8)`.
+`tors run | validate | adapt | list-modules [--namespace …] | version | reload (фаза 9)`.
 Модули могут регистрировать свои подкоманды (`cmd.RegisterCommand`): `tors db migrate`,
-`tors panels ping`, `tors users import --from rw-main` (импорт существующих пользователей панели).
+`tors panels ping`, `tors catalog check` (проверить тарифы и их размещение на панелях).
 `tors version` печатает версии всех вкомпилированных модулей из `debug.ReadBuildInfo`.
 
 ---
@@ -271,7 +277,7 @@ func Emit(ctx context.Context, bus *Events, e Event) error
 flowchart TB
     subgraph PRES["Представление"]
         TG["telegram + transports / middleware / handlers"]
-        WEB["webapp: Mini App / кабинет (будущее)"]
+        WEB["webapp: Telegram Mini App (фаза 7)"]
     end
     subgraph FEAT["Фичи"]
         TRIAL[trial]
@@ -318,20 +324,22 @@ flowchart TB
 |---|---|---|
 | `database` | инфра | Пул pgx, транзакция в `context`, миграции по модулям |
 | `jobs` | инфра | Очередь задач на Postgres (River): ретраи, cron, durable-события |
-| `kv` + `kv.stores.*` | инфра | Состояния диалогов, лимиты, короткие токены, кэш |
-| `http` | инфра | Общий HTTP-сервер: вебхуки Telegram/платёжек/панелей, `/healthz`, `/readyz`, `/metrics` |
+| `kv` + `kv.stores.*` | инфра | Хранилище «ключ → значение» для короткоживущих данных: шаг диалога, лимиты, токены кнопок (см. §6.3) |
+| `http` | инфра | Общий HTTP-сервер: вебхуки Telegram и панелей, Mini App, `/healthz`, `/readyz`, `/metrics` |
 | `i18n` | инфра | Переводы, переопределение текстов из конфига/каталога |
 | `metrics` | инфра | Prometheus-реестр для модулей |
 | `users` | домен | Пользователи и их идентичности (telegram, позже web), язык, блокировки |
 | `catalog` + `catalog.sources.*` | домен | Тарифы (из конфига, позже из БД) |
 | `panels` + `panels.providers.*` | домен | Контракт панелей, реестр экземпляров, нормализованные события, опрос |
 | `billing` + `billing.gateways.*` + `billing.pricing.*` | домен | Заказы, платежи, подтверждение, конвейер цены |
-| `subscriptions` | домен | Подписки, `Grant`/продление, сверка с панелью, напоминания |
-| `trial`, `referral`, `promo`, `wallet` | фичи | Каждая — домен + опциональный UI-модуль `telegram.handlers.*` |
+| `subscriptions` | домен | Подписки (несколько на пользователя), `Grant`/продление, сверка с панелью, напоминания |
+| `trial`, `referral`, `promo` | фичи | Каждая — домен + опциональный UI-модуль `telegram.handlers.*` (позже и `webapp.endpoints.*`) |
+| `wallet` | фичи (опц.) | Внутренний баланс в Stars; даёт шлюз `billing.gateways.balance` |
 | `notifications`, `broadcast` | фичи | Уведомления по событиям, рассылки с учётом лимитов Telegram |
-| `admin` | фичи/UI | Админ-меню в боте; другие модули добавляют в него свои экраны |
+| `admin` | фичи/UI (опц.) | Админ-меню в боте; другие модули добавляют в него свои экраны |
 | `telegram` + гости | UI | Транспорт, роутер, middleware, меню, сцены, отправка |
-| `subaggregator` | фичи | (фаза 7) Единая ссылка подписки для тарифа на нескольких панелях |
+| `webapp` + гости | UI | (фаза 7) Telegram Mini App: JSON API + статика, авторизация по `initData` |
+| `subaggregator` | фичи | (фаза 8) Единая ссылка подписки для тарифа на нескольких панелях |
 
 ### 4.3. Три способа взаимодействия модулей
 
@@ -380,7 +388,7 @@ tors/
 │   ├── yamladapter/             # config.adapters.yaml
 │   ├── database/                # app: database
 │   ├── jobs/                    # app: jobs
-│   ├── kv/                      # app: kv  + memory/ postgres/ redis/
+│   ├── kv/                      # app: kv  + memory/ postgres/
 │   ├── httpserver/              # app: http
 │   ├── i18n/                    # app: i18n
 │   ├── metrics/                 # app: metrics
@@ -393,7 +401,7 @@ tors/
 │   │   └── fake/                # panels.providers.fake (dev/тесты)
 │   ├── billing/                 # app: billing
 │   │   ├── billingtest/         # контрактный тест-сьют шлюзов
-│   │   ├── stars/ yookassa/ cryptobot/ balance/ fake/
+│   │   ├── stars/ fake/         # billing.gateways.telegram_stars, .fake
 │   ├── subscriptions/           # app: subscriptions
 │   │   └── tgui/                # telegram.handlers.my_subscriptions
 │   ├── telegram/                # app: telegram (роутер, меню, сцены, отправка)
@@ -404,11 +412,12 @@ tors/
 │   ├── trial/      (+ tgui/)
 │   ├── referral/   (+ tgui/)    # + billing.pricing.referral_discount
 │   ├── promo/      (+ tgui/)    # + billing.pricing.promo
-│   ├── wallet/     (+ tgui/)    # внутренний баланс (опционально)
+│   ├── wallet/     (+ tgui/)    # внутренний баланс (опц.) + billing.gateways.balance
 │   ├── notifications/
 │   ├── broadcast/  (+ tgui/)
-│   ├── admin/                   # telegram.handlers.admin
-│   └── subaggregator/           # фаза 7
+│   ├── admin/                   # telegram.handlers.admin (опц.)
+│   ├── webapp/                  # app: webapp — Mini App (фаза 7)
+│   └── subaggregator/           # фаза 8
 ├── configs/examples/            # minimal.yaml, remnawave.yaml, full.yaml
 ├── deploy/                      # Dockerfile (distroless), docker-compose.yml
 └── docs/
@@ -417,8 +426,8 @@ tors/
     └── modules.md               # как писать модули
 ```
 
-**Фича = один каталог**: доменная часть (приложение) + `tgui/` с UI-модулем. Включаются в конфиге независимо —
-завтра рядом появится `webui/` для Mini App, а домен фичи не изменится.
+**Фича = один каталог**: доменная часть (приложение) + `tgui/` с UI-модулем бота. Включаются в конфиге независимо —
+в фазе 7 рядом появится `webui/` для Mini App, а домен фичи не изменится.
 
 ---
 
@@ -442,12 +451,22 @@ tors/
   Имя подписки стабильно (это kind задачи). Обработчики обязаны быть идемпотентными.
 
 ### 6.3. `kv`
-Интерфейс `Get/Set(ttl)/Delete/Incr/Lock`. Реализации: `memory` (dev), `postgres` (по умолчанию, отдельная таблица), `redis` (для масштаба).
-Используется для состояний сцен, rate limit, токенов длинных callback-данных, кэша.
+KV (key-value) — хранилище «ключ → значение» со сроком жизни записи (TTL), как словарь, который переживает рестарт.
+Для важных данных (пользователи, подписки, платежи) есть таблицы модулей; в KV лежат мелкие временные данные:
+
+| Ключ (пример) | Значение | TTL | Зачем |
+|---|---|---|---|
+| `scene:user:42` | `promo.enter` | 10 мин | Пользователь нажал «Ввести промокод» — следующее сообщение считается кодом |
+| `rl:user:42` | `3` | 1 с | Счётчик нажатий для защиты от спама (rate limit) |
+| `cb:x7Kp` | `{"plan":"month","sub":17}` | 1 ч | Данные кнопки, не влезающие в лимит Telegram 64 байта |
+
+Интерфейс `Get/Set(ttl)/Delete/Incr/Lock`. Реализации: `memory` (dev, теряется при рестарте), `postgres` (по умолчанию —
+отдельная таблица в той же БД, Redis не нужен). `redis` понадобится, только если запускать несколько копий бота.
 
 ### 6.4. `http`
 `net/http` + `ServeMux` (паттерны Go 1.22+), graceful shutdown, `public_url` для построения адресов вебхуков.
-Модули монтируют маршруты в своём `Provision`: `h.Mount("POST /hooks/yookassa", handler)`; конфликт путей — ошибка старта.
+Нужен с MVP: вебхуки Telegram и Remnawave, позже — Mini App.
+Модули монтируют маршруты в своём `Provision`: `h.Mount("POST /hooks/remnawave", handler)`; конфликт путей — ошибка старта.
 Встроенные `/healthz`, `/readyz` (опрос `HealthChecker` у приложений), `/metrics` (если включён `metrics`).
 
 ### 6.5. `i18n`
@@ -527,7 +546,7 @@ type DeviceManager     interface {
 	RemoveDevice(ctx context.Context, ref AccountRef, id string) error
 }
 type TargetLister  interface{ ListTargets(ctx context.Context) ([]Target, error) }                     // сквады / inbounds
-type AccountLister interface{ ListAccounts(ctx context.Context, p Page) ([]Account, Page, error) } // импорт, сверка, опрос
+type AccountLister interface{ ListAccounts(ctx context.Context, p Page) ([]Account, Page, error) } // сверка, опрос
 ```
 
 Почему `EnsureAccount`, а не `Create/Update`: вызов безопасно повторять (ретраи задач, сверка), нет ветвления
@@ -563,7 +582,7 @@ placements:
 - Конфиг: `url`, `token`, `headers` (для панели за reverse-proxy), `webhook: {path, secret}`, `username_template`, `timeout`.
 - Возможности: все (`TrafficResetter`, `CredentialRevoker`, `DeviceManager` (HWID), `TargetLister`, `AccountLister`), push-события.
 
-### 7.6. `panels.providers.3xui` (фаза 7)
+### 7.6. `panels.providers.3xui` (фаза 8)
 - Сессия: логин → cookie jar, автоматический релогин при 401/редиректе; поддержка web base path.
 - `EnsureAccount`: для каждого inbound из placement — клиент с email `{key}_i{inboundID}`, общий `subId`,
   учётные данные по протоколу inbound (uuid для VLESS/VMess, пароль для Trojan/SS), `flow` из конфига.
@@ -574,7 +593,7 @@ placements:
 ### 7.7. Несколько панелей в одном тарифе
 - Remnawave-only: не нужно — одна ссылка покрывает все ноды.
 - Тариф на нескольких экземплярах: у подписки несколько `bindings`. MVP-вариант — показать несколько ссылок;
-  полноценный — модуль `subaggregator` (фаза 7) отдаёт единую ссылку `https://bot.example.com/sub/{token}`,
+  полноценный — модуль `subaggregator` (фаза 8) отдаёт единую ссылку `https://bot.example.com/sub/{token}`,
   собирая и объединяя конфиги провайдеров.
 
 ### 7.8. Сверка (reconciliation)
@@ -594,16 +613,30 @@ placements:
 | `users` | `users(id, created_at, lang, status, bot_blocked_at)`, `users_identities(user_id, kind, external_id, username, …)` |
 | `catalog` | `catalog_plans` (только при `source: db`) |
 | `billing` | `billing_orders(id, user_id, items jsonb, amount, currency, status, expires_at, idempotency_key)`, `billing_payments(id, order_id, gateway, external_id, amount, currency, status, raw, UNIQUE(gateway, external_id))` |
-| `subscriptions` | `subscriptions(id, user_id, plan_id, plan_snapshot, status, starts_at, expires_at, traffic_limit, device_limit, version)`, `subscriptions_bindings(subscription_id, provider, external_id, synced_at, sync_error)`, `subscriptions_grants(subscription_id, source, idempotency_key UNIQUE, period, created_at)` |
-| `wallet` | `wallet_ledger` (проводки, баланс = сумма) |
+| `subscriptions` | `subscriptions(id, user_id, label, plan_id, plan_snapshot, status, starts_at, expires_at, traffic_limit, device_limit, version)`, `subscriptions_bindings(subscription_id, provider, external_id, synced_at, sync_error)`, `subscriptions_grants(subscription_id, source, idempotency_key UNIQUE, period, created_at)`, `subscriptions_credits(user_id, period, source, idempotency_key UNIQUE, applied_to, applied_at)` |
+| `wallet` | `wallet_ledger` (проводки в `XTR`, баланс = сумма) |
 | `referral` | `referral_links`, `referral_rewards` |
 | `promo` | `promo_codes`, `promo_redemptions` |
 | `jobs` | таблицы River |
 
-- Деньги — `int64` в минорных единицах + ISO-код; Telegram Stars — валюта `XTR`, целые.
+- Деньги — `int64` в минорных единицах + ISO-код. В MVP единственная валюта — `XTR` (Telegram Stars, целые),
+  но тип `Money` всё равно хранит валюту: новый шлюз с рублями или крипто не потребует миграций.
 - В заказе хранится **снимок тарифа** (цена, период, лимиты) — изменение тарифа не влияет на оплаченное.
 
-### 8.2. `subscriptions`: единая точка выдачи
+### 8.2. Несколько подписок у пользователя
+
+- Подписка — самостоятельная сущность: свой тариф, срок, лимиты, **свой аккаунт в панели** и своя ссылка.
+  Ключ аккаунта в панели строится от ID подписки (`s{subscriptionID}`), а не от ID пользователя.
+- У подписки есть имя (`label`): пользователь может назвать её «Телефон» или «Роутер»; по умолчанию — «Подписка #N».
+- Покупка: «Новая подписка» или «Продлить …». Если подписок несколько — пользователь выбирает, если одна — продлевается она.
+  Позиция заказа несёт `target` — ID продлеваемой подписки или пусто для новой.
+- Лимит `max_per_user` в конфиге (`0` — без ограничения).
+- Бонусные дни без явной цели (реферальная награда, промокод на дни) копятся как **неприменённые** (`subscriptions_credits`);
+  пользователь применяет их к выбранной подписке, а при единственной подписке они применяются автоматически.
+- Триал — один на пользователя, а не на подписку.
+- Напоминания и уведомления — по каждой подписке отдельно, с её именем.
+
+### 8.3. `subscriptions`: единая точка выдачи
 
 ```go
 // Grant — единственный способ добавить время подписке: оплата, триал, реферальный бонус, промокод, подарок админа.
@@ -611,10 +644,11 @@ func (a *App) Grant(ctx context.Context, req GrantRequest) (Subscription, error)
 
 type GrantRequest struct {
 	UserID         int64
-	PlanID         string // или явные лимиты для подарков
-	Period         tors.Duration
-	Source         string // "order" | "trial" | "referral" | "promo" | "admin"
-	IdempotencyKey string // "order:123", "trial:user:42" — повтор не продлевает дважды
+	SubscriptionID int64         // 0 — создать новую подписку
+	PlanID         string        // тариф: лимиты и размещение на панелях
+	Period         tors.Duration // явный период для бонусов/подарков; иначе — из тарифа
+	Source         string        // "order" | "trial" | "referral" | "promo" | "admin"
+	IdempotencyKey string        // "order:123", "trial:user:42" — повтор не продлевает дважды
 }
 ```
 
@@ -622,9 +656,9 @@ type GrantRequest struct {
 - Статусы: `pending` (ещё не выдана в панели) → `active` → `expired` → (продление) `active`; `suspended` (админ).
 - Периодические задачи: `expiring` (напоминания за N часов из конфига), `expire` (перевод статуса), `reconcile`.
 
-### 8.3. `billing`: деньги без знания о VPN
+### 8.4. `billing`: деньги без знания о VPN
 
-`billing` оперирует абстрактными позициями заказа `Item{Kind, Ref, Qty, Price, Snapshot}`.
+`billing` оперирует абстрактными позициями заказа `Item{Kind, Ref, Target, Qty, Price, Snapshot}`.
 `Kind = "subscriptions.plan"` исполняет модуль `subscriptions`, `Kind = "wallet.topup"` — модуль `wallet`.
 Биллинг не знает, что продаёт VPN.
 
@@ -638,15 +672,15 @@ type Gateway interface {
 
 // PaymentAction — что показать пользователю; UI рендерит по типу.
 type PaymentAction interface{ isPaymentAction() }
-type RedirectURL     struct{ URL string }                                  // YooKassa, CryptoBot…
 type TelegramInvoice struct{ Title, Description, Payload, Currency string; Prices []LabeledPrice } // Stars
-type Completed       struct{}                                              // оплата с баланса
+type Completed       struct{}                                              // оплата с баланса (wallet)
+type RedirectURL     struct{ URL string }                                  // задел для будущих внешних шлюзов
 
 // Опциональные возможности:
-type StatusPoller interface{ PollStatus(ctx context.Context, externalID string) (PaymentStatus, error) }
-type Refunder     interface{ Refund(ctx context.Context, p Payment, amount money.Money) error }
+type PreCheckValidator interface{ Validate(ctx context.Context, orderID int64, amount money.Money) error }
+type Refunder          interface{ Refund(ctx context.Context, p Payment, amount money.Money) error }
 
-// Шлюз сообщает о подтверждённой оплате из своего вебхука / апдейта Telegram:
+// Шлюз сообщает о подтверждённой оплате (для Stars — из апдейта successful_payment):
 //   billingApp.Confirm(ctx, Confirmation{Gateway, ExternalID, OrderID, Amount, Raw})
 // Confirm сверяет сумму и валюту с заказом и идемпотентен по (gateway, external_id).
 ```
@@ -657,48 +691,61 @@ type Refunder     interface{ Refund(ctx context.Context, p Payment, amount money
 type PriceModifier interface{ Apply(ctx context.Context, q *Quote) error } // промокод, реферальная скидка, акции
 ```
 
-**Шлюзы для старта:** `telegram_stars` (правила Telegram для цифровых товаров), один внешний
-(YooKassa или CryptoBot — решить, см. §17), `fake` (dev). Шлюз Stars зависит от приложения `telegram`
-(`sendInvoice`, `pre_checkout_query`, `successful_payment`, `refundStarPayment`) — интеграционным модулям это разрешено,
-домен `billing` о Telegram не знает.
+**Telegram Stars — единственный шлюз MVP** (плюс `fake` для разработки и `balance`, если включён `wallet`):
 
-### 8.4. Сквозной сценарий покупки
+- Валюта `XTR`, цены тарифов в конфиге указываются в звёздах.
+- `CreatePayment` возвращает `TelegramInvoice`, payload инвойса — ID заказа.
+- В чате UI отправляет инвойс через `sendInvoice`; в Mini App — получает ссылку `createInvoiceLink` и открывает
+  `Telegram.WebApp.openInvoice`. Шлюз один, способ показа выбирает UI.
+- `pre_checkout_query` (ответить нужно за 10 секунд): billing проверяет, что заказ не истёк, не оплачен и сумма совпадает.
+- `successful_payment` → `billing.Confirm`, `external_id = telegram_payment_charge_id`.
+- Возврат — `refundStarPayment` (возможность `Refunder`), доступен из админки.
+- Внешние вебхуки платёжек не нужны: оплата подтверждается обычным апдейтом бота.
+- Шлюз зависит от приложения `telegram` — интеграционным модулям это разрешено; домен `billing` о Telegram не знает.
+- Возможное развитие — подписки Stars с автосписанием (в Bot API только период 30 дней), см. §20.
+
+### 8.5. Сквозной сценарий покупки (Stars)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor U as Пользователь
+    participant T as Telegram
     participant TG as telegram.handlers.shop
     participant B as billing
-    participant GW as billing.gateways.*
+    participant ST as billing.gateways.telegram_stars
     participant J as jobs
     participant S as subscriptions
     participant P as panels → remnawave
     participant N as notifications
 
-    U->>TG: «Купить» → тариф → способ оплаты
-    TG->>B: CreateOrder(user, items из catalog)
+    U->>TG: «Купить» → новая или продлить «Телефон» → тариф
+    TG->>B: CreateOrder(user, item{plan, target})
     B->>B: конвейер цены (промо, скидки)
-    B->>GW: CreatePayment(order)
-    GW-->>TG: PaymentAction (URL / Invoice)
-    TG-->>U: кнопка «Оплатить»
-    U->>GW: оплата
-    GW->>B: вебхук → Confirm(gateway, external_id, amount)
+    B->>ST: CreatePayment(order)
+    ST-->>TG: TelegramInvoice
+    TG-->>U: инвойс в чате (sendInvoice)
+    U->>T: «Оплатить»
+    T->>ST: pre_checkout_query
+    ST->>B: Validate(order, amount)
+    ST-->>T: answerPreCheckoutQuery(ok) — до 10 с
+    T->>ST: successful_payment(charge_id)
+    ST->>B: Confirm(stars, charge_id, amount)
     Note over B,J: одна транзакция: payment=succeeded, order=paid,<br/>durable-событие billing.order.paid
     J->>S: subscriptions.on_order_paid (ретраи до успеха)
-    S->>S: Grant(key="order:ID") — идемпотентно
+    S->>S: Grant(target, key="order:ID") — идемпотентно
     S->>P: EnsureAccount(spec)
     P-->>S: Account{SubscriptionURL}
     S->>J: durable subscriptions.granted
     J->>N: notifications.on_granted
-    N-->>U: «Подписка активна до …» + ссылка и QR
+    N-->>U: «Подписка «Телефон» активна до …» + ссылка и QR
 ```
 
-**Гарантии:** повторный вебхук — no-op (уникальность `(gateway, external_id)`); недоступна панель — задача
+**Гарантии:** повторный `successful_payment` — no-op (уникальность `(gateway, external_id)`); недоступна панель — задача
 ретраится, подписка в статусе `pending`, пользователь видит «активируем…»; падение процесса между шагами —
 задача переживает рестарт.
 
-### 8.5. Каталог событий
+### 8.6. Каталог событий
 
 | Событие | Публикует | Durable | Подписчики |
 |---|---|---|---|
@@ -750,9 +797,25 @@ type Router interface {
 - **Сцены**: ввод промокода, поиск пользователя в админке — активная сцена получает текст раньше общих обработчиков.
 
 ### 9.3. Стандартные UI-модули
-`start`, `main_menu`, `language`, `support`, `shop` (витрина: `catalog` + `billing`), `my_subscriptions`
-(ссылка, QR, остаток трафика/срока, продление, перевыпуск ссылки/устройства — если провайдер умеет),
-`trial`, `referral`, `promo`, `admin` (статистика, карточка пользователя, выдача дней, рассылка, здоровье панелей).
+- `start`, `main_menu`, `language` (ru по умолчанию, en), `support`.
+- `shop` — витрина: «Новая подписка» или «Продлить …» с выбором подписки → тариф → инвойс Stars.
+- `my_subscriptions` — список подписок с именами; карточка подписки: ссылка, QR, остаток срока и трафика,
+  продление, переименование, применение бонусных дней, перевыпуск ссылки и управление устройствами (если провайдер умеет).
+- `trial`, `referral`, `promo`, `wallet` (баланс и пополнение, если модуль включён).
+- `admin` (необязательный): статистика, карточка пользователя со всеми подписками, выдача дней, возврат Stars, рассылка, здоровье панелей.
+
+### 9.4. Telegram Mini App (фаза 7)
+
+Mini App — вторая «витрина» над тем же доменом, по устройству она зеркальна приложению `telegram`:
+
+- Приложение `webapp` монтирует в `http` JSON API (`/app/api/…`) и отдаёт статику фронтенда (или фронтенд хостится отдельно).
+- Авторизация — проверка `initData` Telegram WebApp (HMAC от токена бота) → пользователь из `users` по telegram-идентичности.
+  Это тот же пользователь, что и в чате: подписки, баланс и рефералы общие.
+- Эндпоинты — гостевые модули `webapp.endpoints.*`, фичи добавляют их так же, как кнопки в меню бота
+  (`subscriptions/webui`, `referral/webui`, …). Вызывают те же сервисы `catalog`, `billing`, `subscriptions`, что и хендлеры бота.
+- Оплата: шлюз Stars возвращает тот же `TelegramInvoice`, `webapp` превращает его в ссылку `createInvoiceLink`
+  для `Telegram.WebApp.openInvoice`. Подтверждение приходит обычным `successful_payment` — поток после оплаты тот же.
+- Выбор фронтенд-стека — отдельное решение, Go-части он не касается.
 
 ---
 
@@ -760,13 +823,13 @@ type Router interface {
 
 | Модуль | Логика | Связи |
 |---|---|---|
-| `trial` | Один раз на пользователя, тариф из конфига, опционально — подписка на канал | `subscriptions.Grant(source=trial, key=trial:user:ID)` |
-| `referral` | Ссылка `/start ref_…`, награда рефереру (дни/баланс) при первой оплате реферала, скидка рефералу | `users.registered`, `billing.order.paid`, `billing.pricing.referral_discount` |
+| `trial` | Один раз на пользователя (не на подписку), тариф из конфига, опционально — подписка на канал | `subscriptions.Grant(source=trial, key=trial:user:ID)` |
+| `referral` | Ссылка `/start ref_…`, награда рефереру при первой оплате реферала: бонусные дни (неприменённые) или звёзды на баланс, если включён `wallet`; скидка рефералу | `users.registered`, `billing.order.paid`, `billing.pricing.referral_discount` |
 | `promo` | Коды на скидку или на дни, лимиты использований, сроки | `billing.pricing.promo`, `subscriptions.Grant(source=promo)` |
-| `wallet` | Внутренний баланс, пополнение как товар `wallet.topup` | `billing.gateways.balance` |
+| `wallet` (опц.) | Внутренний баланс в `XTR`: пополнение Stars как товар `wallet.topup`, оплата тарифов с баланса, зачисление реферальных наград и компенсаций | `billing.gateways.balance`, `billing.order.paid` |
 | `notifications` | Шаблоны уведомлений по событиям, уведомления админу | durable-подписки, `telegram.Sender` |
 | `broadcast` | Рассылки по сегментам через `jobs` с учётом лимитов | `users`, `telegram.Sender` |
-| `admin` | Админ-меню, роли по списку Telegram ID, аудит действий | вклад других модулей через `Menu("admin")` |
+| `admin` (опц.) | Админ-меню, роли по списку Telegram ID, аудит действий | вклад других модулей через `Menu("admin")` |
 
 ---
 
@@ -780,7 +843,7 @@ apps:
   jobs:     { queues: { default: { workers: 10 }, notify: { workers: 4 } } }
   kv:       { store: { store: postgres } }
   http:     { listen: ":8080", public_url: "https://bot.example.com" }
-  i18n:     { default: ru, overrides_dir: /etc/tors/locales }
+  i18n:     { default: ru, languages: [ru, en], overrides_dir: /etc/tors/locales }
   users:    {}
 
   panels:
@@ -807,7 +870,7 @@ apps:
           traffic: 200GiB
           traffic_reset: month
           devices: 3
-          prices: { RUB: "199.00", XTR: 150 }
+          prices: { XTR: 150 }          # цены в Telegram Stars
           placements: [ { provider: rw-main, squads: ["<squad-uuid>"] } ]
         - id: trial
           hidden: true
@@ -820,25 +883,26 @@ apps:
     order_ttl: 30m
     gateways:
       stars:    { gateway: telegram_stars }
-      yookassa: { gateway: yookassa, shop_id: "123456", secret_key: "{env.YOOKASSA_SECRET}" }
+      # balance: { gateway: balance }  # оплата с внутреннего баланса, если включён wallet
     pricing:
       - { modifier: promo }
       - { modifier: referral_discount, percent: 10 }
 
   subscriptions:
-    max_per_user: 1
+    max_per_user: 5              # 0 — без ограничения
     reminders: [72h, 24h]
     reconcile_every: 1h
 
   trial:         { plan: trial, require_channel: "@my_channel" }
   referral:      { reward: { days: 7 }, when: first_payment }
   promo:         {}
+  # wallet:      {}               # внутренний баланс — необязательный модуль
   notifications: { admin_chat: -1001234567890 }
 
   telegram:
     token: "{env.BOT_TOKEN}"
     admins: [111111111]
-    transport: { transport: webhook }
+    transport: { transport: webhook }   # для локальной разработки — polling
     middleware:
       - { middleware: recover }
       - { middleware: logging }
@@ -855,12 +919,14 @@ apps:
       - { handler: promo }
       - { handler: support, contact: "@support" }
       - { handler: language }
-      - { handler: admin }
+      # - { handler: wallet }
+      - { handler: admin }               # необязательный модуль
     menus:
       main: [shop, my_subscriptions, trial, referral, promo, support, language]
 ```
 
-Удалить `trial` из `apps` и `handlers` — триала нет. Раскомментировать `xui-de` — появилась вторая панель. Ни строчки кода.
+Удалить `trial` из `apps` и `handlers` — триала нет. Раскомментировать `wallet` — появился баланс. Раскомментировать `xui-de` —
+появилась вторая панель. Ни строчки кода.
 
 ---
 
@@ -945,16 +1011,17 @@ func main() { torscmd.Main() }
 ```
 
 - Сторонние модули — отдельные Go-модули в своих репозиториях; кастомная сборка = свой `main.go` с нужными импортами.
-- Фаза 8: утилита `xtors build --with github.com/acme/tors-gateway-foo@v1.2.0` (аналог xcaddy).
-- Поставка: один статический бинарь, Docker-образ (distroless), `docker-compose.yml` с Postgres (Redis — опционально).
+- Фаза 9: утилита `xtors build --with github.com/acme/tors-gateway-foo@v1.2.0` (аналог xcaddy).
+- Поставка: один статический бинарь, Docker-образ (distroless), `docker-compose.yml` с Postgres. Redis не нужен.
 
 ---
 
 ## 14. Безопасность
 
 - Секреты только через `{env.*}`/`{file.*}`; логгер маскирует поля с тегом `secret`.
-- Вебхуки: проверка подписи каждым модулем (HMAC Remnawave, подпись/сверка статуса через API у платёжек, `secret_token` Telegram).
-- Сумма и валюта платежа всегда сверяются с заказом на сервере; цена считается только на сервере.
+- Вебхуки: проверка подписи каждым модулем (HMAC Remnawave, `secret_token` Telegram).
+- Mini App: каждый запрос API авторизуется по `initData` (HMAC от токена бота) с проверкой срока `auth_date`.
+- Сумма и валюта платежа сверяются с заказом на сервере (в `pre_checkout_query` и в `Confirm`); цена считается только на сервере.
 - Идемпотентность везде, где есть деньги и выдача: уникальные ключи в БД, а не проверки в коде.
 - Админ-действия — только для ID из конфига, аудит через события.
 - Rate limit на пользователя; защита от злоупотребления триалом (одноразовость по пользователю, опционально — канал).
@@ -969,7 +1036,7 @@ func main() { torscmd.Main() }
 ## 16. Тестирование
 
 - **Ядро**: unit-тесты реестра, форм `LoadModule`, порядка жизненного цикла, отката, детекта циклов, плейсхолдеров, шины событий. Цель — ≥85% покрытия.
-- **Контрактные сьюты**: `panelstest` (fake, Remnawave, 3x-UI), `billingtest` (fake + шлюзы на sandbox).
+- **Контрактные сьюты**: `panelstest` (fake, Remnawave, 3x-UI), `billingtest` (fake, Stars — в тестовом окружении Telegram).
 - **Интеграционные**: testcontainers — Postgres (миграции, River), Remnawave и 3x-UI в docker для провайдеров (отдельный job CI).
 - **Telegram**: хендлеры тестируются с фейковым `Sender` и сгенерированными апдейтами.
 - **E2E-сценарий**: конфиг с `fake` провайдером и `fake` шлюзом — «покупка → выдача → продление → истечение» без внешних сервисов.
@@ -985,13 +1052,15 @@ func main() { torscmd.Main() }
 | **1. Ядро** | Реестр, `Context`, все формы `LoadModule`, жизненный цикл с откатом, config + плейсхолдеры + `Duration`/`Size`, адаптеры, события, логи, CLI (`run/validate/adapt/list-modules/version`), YAML-адаптер | Демо-приложение `hello` запускается из YAML; ≥85% покрытия; ядро без внешних зависимостей | M |
 | **2. Инфраструктура** | `database` (pgx, tx, миграции по модулям), `jobs` (River, cron, durable-события), `kv` (memory, postgres), `http`, `i18n` | `docker compose up` поднимает бинарь + Postgres; миграции модулей применяются независимо | M |
 | **3. Telegram** | Приложение, polling/webhook, роутер, middleware, меню, сцены, `Sender` с лимитами; `start`, `main_menu`, `language`, `support` | Бот отвечает; меню собирается из включённых модулей | M |
-| **4. Домен + Remnawave** | `users`, `catalog` (config), контракт `panels` + `fake` + `panelstest`, провайдер Remnawave (+вебхуки), `subscriptions` (`Grant`, reconcile, напоминания), `my_subscriptions` (ссылка, QR) | Команда админа выдаёт подписку → пользователь появился в Remnawave, ссылка работает | L |
-| **5. Биллинг = MVP** | `billing` (заказы, платежи, `Confirm`, pricing), шлюзы `telegram_stars` + один внешний + `fake`, `shop`, выдача через durable-события, `notifications` | E2E: покупка и продление; повторный вебхук не продлевает дважды; при недоступной панели выдача ретраится | L |
-| **6. Рост и админка** | `trial`, `promo`, `referral`, `admin` (статистика, карточка, выдача дней, рассылка), `broadcast`, `wallet` (опц.), `metrics` | Фичи включаются/выключаются только конфигом | M |
-| **7. 3x-UI** | Провайдер `3xui`, контрактные тесты на docker-образе, опрос → нормализованные события, режим `shared` трафика, `subaggregator` (опц.) | Тариф на 3x-UI работает через тот же `shop`/`my_subscriptions` без изменений домена и UI | M/L |
-| **8. Эксплуатация** | Hot reload (`SIGHUP`, `tors reload`), `UsagePool`, `xtors`, `catalog.sources.db` + редактирование тарифов в админке, документация для авторов модулей | Перезагрузка конфига без рестарта; сторонний модуль собирается `xtors` | M |
+| **4. Домен + Remnawave** | `users`, `catalog` (config), контракт `panels` + `fake` + `panelstest`, провайдер Remnawave (+вебхуки), `subscriptions` (несколько на пользователя, `Grant`, reconcile, напоминания), `my_subscriptions` (список, ссылка, QR, имя) | Команда выдаёт пользователю две подписки → в Remnawave два аккаунта, обе ссылки работают | L |
+| **5. Биллинг = MVP** | `billing` (заказы, платежи, `Confirm`, pricing), шлюзы `telegram_stars` + `fake`, `shop` (новая / продлить выбранную), выдача через durable-события, `notifications` | E2E: покупка новой и продление выбранной подписки за Stars; повторный `successful_payment` не продлевает дважды; при недоступной панели выдача ретраится | L |
+| **6. Рост и админка** | `trial`, `promo`, `referral` (бонусные дни), `wallet` + шлюз `balance`, `admin` (статистика, карточка, выдача дней, возврат Stars, рассылка), `broadcast`, `metrics` | Фичи включаются/выключаются только конфигом | M |
+| **7. Mini App** | Приложение `webapp`: авторизация по `initData`, API витрины и подписок, оплата через `createInvoiceLink`, `webui/` у фич | Покупка и управление подписками из Mini App без изменений домена | M/L |
+| **8. 3x-UI** | Провайдер `3xui`, контрактные тесты на docker-образе, опрос → нормализованные события, режим `shared` трафика, `subaggregator` (опц.) | Тариф на 3x-UI работает через тот же `shop`/`my_subscriptions` без изменений домена и UI | M/L |
+| **9. Эксплуатация** | Hot reload (`SIGHUP`, `tors reload`), `UsagePool`, `xtors`, `catalog.sources.db` + редактирование тарифов в админке, документация для авторов модулей | Перезагрузка конфига без рестарта; сторонний модуль собирается `xtors` | M |
 
 Вертикальный срез появляется уже в фазе 4 — это главный способ не переусложнить ядро: каждое его API проверяется реальными модулями.
+Фазы 7 и 8 независимы друг от друга, их можно поменять местами.
 
 ---
 
@@ -1005,6 +1074,9 @@ func main() { torscmd.Main() }
 6. **ADR-006** Шина событий в ядре (in-memory, синхронная); гарантированная доставка — модуль `jobs`.
 7. **ADR-007** Telegram-библиотека `telego`, изолирована в приложении `telegram` и его гостях.
 8. **ADR-008** Деньги — `int64` в минорных единицах + ISO-код; Stars — `XTR`.
+9. **ADR-009** В MVP единственный шлюз — Telegram Stars; другие добавляются модулями.
+10. **ADR-010** У пользователя может быть несколько подписок; одна подписка = один аккаунт в панели и своя ссылка.
+11. **ADR-011** Одна копия процесса; `kv` и очередь задач — в той же PostgreSQL, Redis не используется.
 
 ## 19. Риски
 
@@ -1013,18 +1085,29 @@ func main() { torscmd.Main() }
 | Переусложнение ради модульности | Вертикальный срез в фазе 4; в ядро — только то, что нужно двум и более модулям |
 | Ломающие изменения API Remnawave | Anti-corruption layer в провайдере, матрица версий, проверка версии при старте, контрактные тесты |
 | Зоопарк версий и форков 3x-UI | Capability-флаги, матрица совместимости, тесты на конкретных образах |
-| Правила Telegram для оплаты цифровых товаров | Шлюзы — модули, Stars поддерживается с MVP |
+| Единственный способ оплаты — Stars (комиссия, вывод через Fragment, не всем пользователям удобно) | Новый шлюз — отдельный модуль; домен и UI не меняются (`RedirectURL` уже в контракте) |
 | Двойная выдача / потерянная оплата | Уникальные ключи в БД, транзакционный outbox, идемпотентные обработчики, E2E-тесты на повторы |
-| Сложность hot reload | Правила жизненного цикла соблюдаются с фазы 1, сама перезагрузка — в фазе 8 |
+| Сложность hot reload | Правила жизненного цикла соблюдаются с фазы 1, сама перезагрузка — в фазе 9 |
 
-## 20. Открытые вопросы
+## 20. Решения и открытые вопросы
 
-1. Какие платёжные шлюзы нужны в MVP, кроме Telegram Stars (YooKassa, CryptoBot, другие)?
-2. Одна подписка на пользователя или несколько (например, для разных устройств/семьи)?
-3. Нужен ли внутренний баланс (`wallet`) или только прямая оплата тарифа?
-4. Тарифы задаются в конфиге или их нужно сразу редактировать из админки?
-5. Языки интерфейса: ru + en?
-6. Нужен ли импорт существующих пользователей из Remnawave (переезд с другого бота)?
-7. Планируется ли Mini App / веб-кабинет — это повышает приоритет модуля `http` и API.
-8. Для 3x-UI: одна подписка на несколько серверов (агрегатор) или сервер = отдельный тариф?
-9. Ожидаемый масштаб: хватит ли одного инстанса (влияет на `kv.redis` и webhook vs polling)?
+**Принято**
+
+| Вопрос | Решение |
+|---|---|
+| Платёжные шлюзы | Только Telegram Stars (+ `fake` для разработки) |
+| Подписок на пользователя | Несколько, лимит `max_per_user` в конфиге (§8.2) |
+| Внутренний баланс | Необязательный модуль `wallet` (фаза 6) |
+| Админка | Необязательный модуль `admin` |
+| Тарифы | В конфиге (`catalog.sources.config`); редактирование из админки — фаза 9 |
+| Языки | ru (по умолчанию) и en |
+| Импорт пользователей из панели | Не нужен |
+| Mini App | Планируется — фаза 7 |
+| Масштаб | Одна копия бота; `kv` и очередь в PostgreSQL, Redis не нужен. Webhook в продакшене, polling для разработки |
+
+**Открыто**
+
+1. 3x-UI: одна подписка на несколько серверов (агрегатор `subaggregator`) или сервер = отдельный тариф? Можно решить к фазе 8.
+2. Нужно ли автопродление? Bot API умеет подписки Stars с автосписанием, но только с периодом 30 дней.
+   Решение не блокирует MVP: это возможность шлюза `telegram_stars`, её можно добавить позже.
+3. Реферальная награда по умолчанию: бонусные дни или звёзды на баланс (если включён `wallet`)? Оба варианта поддерживаются конфигом.
