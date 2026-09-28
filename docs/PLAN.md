@@ -279,7 +279,7 @@ func Emit(ctx context.Context, bus *Events, e Event) error
 
 ### 3.7. CLI
 
-`tors run | validate | adapt | schema | list-modules [--namespace …] | version | reload (фаза 9)`.
+`tors run | validate | adapt | schema | list-modules [--namespace …] | ui (graph, docs, export, preview) | version | reload (фаза 9)`.
 Модули могут регистрировать свои подкоманды (`cmd.RegisterCommand`): `tors db migrate`,
 `tors panels ping`, `tors catalog check` (проверить тарифы и их размещение на панелях).
 `tors version` печатает версии всех вкомпилированных модулей из `debug.ReadBuildInfo`.
@@ -826,18 +826,17 @@ type Router interface {
 	On(f UpdateFilter, h HandlerFunc)          // pre_checkout_query, successful_payment, …
 	Scene(name string, s Scene)                // многошаговые диалоги, состояние — в kv
 
-	// UI как данные (§9.5):
-	Action(name string, h HandlerFunc)            // "shop.open" — на него ссылаются кнопки экранов
-	Screen(id string, def ScreenDef)              // экран по умолчанию; тема может его переопределить
-	Slot(id string, fill SlotFunc)                // динамический список кнопок: тарифы, подписки
+	// UI как данные (§9.5): модуль даёт данные и действия, тема — экраны, кнопки и переходы
+	Data(name string, p DataProvider)             // "subscriptions.list": параметры, поля для шаблонов, чтение
+	Action(name string, a ActionSpec)             // "trial.start": параметры, исходы, экраны по умолчанию, обработчик
 	Condition(name string, pred func(*Ctx) bool)  // "trial.available" — для visible_if / disabled_if
-	Contribute(screen string, b Button)           // своя кнопка в чужом экране (порядок по умолчанию)
+	DefaultTheme(fsys fs.FS)                      // экраны и фрагменты по умолчанию; тема пользователя их переопределяет
 }
 ```
 
 - **Callback data**: `<prefix>:<action>[:args]`, лимит 64 байта проверяет роутер; длинные данные — токен в `kv`.
-- **Композиция экранов**: модули добавляют кнопки в чужие экраны (`main_menu`, `admin`) — `referral` добавляет
-  «Пригласить друга», не трогая модуль главного меню. Раскладку, тексты, фото и цвета задаёт тема (§9.5).
+- **Композиция экранов**: стандартная тема собирается из фрагментов модулей — `referral` добавляет «Пригласить друга»
+  в главное меню, не трогая другие модули. Своя тема получает полный контроль над экранами и переходами (§9.5).
 - **Сцены**: ввод промокода, поиск пользователя в админке — активная сцена получает текст раньше общих обработчиков.
 
 ### 9.3. Стандартные UI-модули
@@ -861,81 +860,214 @@ Mini App — вторая «витрина» над тем же доменом, 
   для `Telegram.WebApp.openInvoice`. Подтверждение приходит обычным `successful_payment` — поток после оплаты тот же.
 - Фронтенд — отдельный проект (стек в §21), Go-части он не касается.
 
-### 9.5. Экраны: UI как данные
+### 9.5. UI как данные: экраны, кнопки и переходы
 
-Каждый экран бота — главное меню, витрина, карточка подписки, админка — описывается **данными, а не кодом**:
-фото, текст, порядок и оформление кнопок. Модуль задаёт экран по умолчанию, действия и данные для шаблона.
-Продавец переопределяет любой экран файлом темы — без пересборки и без знания Go.
+Принцип — разделение ролей: **модули** дают данные (что показать) и действия (что сделать), а **тема** — набор YAML-файлов —
+полностью задаёт представление и навигацию: какие экраны есть, что на них, где стоит каждая кнопка и куда она ведёт.
+Это касается и экранов, которые вы создаёте сами, без единой строки кода.
 
-```yaml
-# /etc/tors/ui/main_menu.yaml — переопределение экрана «главное меню»
-screen: main_menu
-photo: { file: banner.jpg, position: top }   # top | bottom; файл, URL или file_id
-text:                                         # Markdown + шаблоны Go
-  ru: |
-    ## Привет, {{ .User.FirstName }}! 👋
-    Активных подписок: **{{ .ActiveCount }}**
-  en: |
-    ## Hi, {{ .User.FirstName }}! 👋
-    Active subscriptions: **{{ .ActiveCount }}**
-buttons:                                      # ряды сверху вниз, кнопки в ряду слева направо
-  - - { action: shop.open, text: { ru: "Купить подписку", en: "Buy" }, emoji: "🛒", style: success }
-  - - { action: subscriptions.list, text: { ru: "Мои подписки", en: "My subscriptions" }, emoji: "🔑" }
-    - { action: referral.open, text: { ru: "Пригласить", en: "Invite" }, emoji: "🎁" }
-  - - { action: trial.start, emoji: "🎉", style: primary, visible_if: trial.available }
-  - - { action: support.open, emoji: "💬" }   # текст не задан — берётся перевод из модуля
+| Что | Кто задаёт | Пример |
+|---|---|---|
+| Данные (только чтение) | Модуль | `subscriptions.list`, `subscriptions.get`, `catalog.plans`, `referral.stats` |
+| Действия с именованными исходами | Модуль | `trial.start` → исходы `ok`, `already_used`, `need_channel` |
+| Экраны, тексты, фото, кнопки, их расположение и переходы | Тема | `main_menu`, `sub_card`, `guide_ios` |
+
+Модули поставляют тему по умолчанию, поэтому бот работает сразу после установки. Стандартная тема собирается
+из фрагментов модулей: например, `referral` добавляет свою кнопку в главное меню. `tors ui export` выгружает её целиком
+в файлы. Экран с тем же ID в вашей теме полностью заменяет стандартный — вместе с раскладкой и переходами.
+
+```
+ui/
+├── screens/        # по файлу на экран (или несколько экранов в одном файле)
+├── fragments.yaml  # повторяющиеся куски: ряд «Назад», шапка, подвал
+├── routes.yaml     # куда ведут исходы действий, события и команды
+└── assets/         # картинки
 ```
 
-**Текст.** Пишется в Markdown и с шаблонами (`{{ .ActiveCount }}`); данные для шаблона каждый экран документирует сам.
-Перевод — прямо в экране (`ru`/`en`) или ключом i18n из модуля.
+#### Экран
 
-**Фото.** `position: top` — фото над текстом, `bottom` — под текстом. Файл загружается в Telegram один раз,
-дальше используется по `file_id` (кэш в `kv`). Экран без фото — просто не указывать `photo`.
+```yaml
+# ui/screens/main_menu.yaml
+id: main_menu
+data: { Subs: subscriptions.summary }       # данные модулей для шаблонов
+blocks:                                     # тело сообщения сверху вниз
+  - photo: assets/banner.jpg
+  - text:
+      ru: "## Привет, {{ .User.FirstName }}! 👋"
+      en: "## Hi, {{ .User.FirstName }}! 👋"
+  - buttons:                                # кнопки ВНУТРИ сообщения, между блоками (rich)
+      align: center                         # left | center | right
+      items: [ { text: { ru: "Как подключиться?", en: "How to connect?" }, goto: guide, style: link } ]
+  - text: { ru: "Активных подписок: **{{ .Subs.ActiveCount }}**" }
+keyboard:                                   # кнопки ПОД сообщением: ряды сверху вниз, в ряду слева направо
+  - [ { text: { ru: "🛒 Купить подписку" }, goto: plans, style: success } ]
+  - [ { text: { ru: "🔑 Мои подписки" }, goto: my_subs },
+      { text: { ru: "🎁 Пригласить" }, goto: referral } ]
+  - [ { text: { ru: "🎉 Пробный период" }, action: trial.start, style: primary, visible_if: trial.available } ]
+  - [ { text: { ru: "💬 Поддержка" }, url: "https://t.me/my_support" } ]
+```
 
-**Кнопки** (Bot API 9.4+ — цвет и иконки, 10.3 — неактивные кнопки):
+Текст — Markdown с шаблонами Go (`{{ .Subs.ActiveCount }}`, `{{ .ExpiresAt | date }}`); перевод — прямо в экране (`ru`/`en`)
+или ключом i18n. Фото загружается в Telegram один раз и дальше используется по `file_id` (кэш в `kv`).
+
+#### Куда ведёт кнопка
+
+| Поле | Что происходит |
+|---|---|
+| `goto: <экран>` (+ `params`) | Переход на экран — любой, в том числе созданный вами |
+| `action: <модуль.действие>` (+ `params`, `on`) | Модуль выполняет действие и возвращает исход; `on` задаёт экран для каждого исхода |
+| `back: true` / `home: true` | Назад по истории переходов / на стартовый экран |
+| `url` / `web_app` / `copy_text` | Ссылка / Mini App / копирование текста (например, ссылки подписки) |
+| `confirm: <экран>` | Перед действием показать экран подтверждения (для опасных действий) |
+
+#### Как выглядит кнопка (Bot API 9.4+ — цвет и иконки, 10.3 — неактивные кнопки)
 
 | Поле | Что задаёт |
 |---|---|
-| `action` | Действие модуля (`shop.open`); неизвестное действие — ошибка при старте. Вместо него: `url`, `web_app` (Mini App), `copy_text` (например, «📋 Скопировать ссылку подписки») |
-| `text` | Надпись по языкам или ключ i18n; поддерживает шаблоны: `Продлить до {{ .ExpiresAt }}` |
-| `emoji` | Обычный эмодзи перед надписью — работает всегда |
-| `icon` | ID кастомного эмодзи Telegram перед надписью. Работает, только если у владельца бота Telegram Premium (в личных чатах) или бот купил дополнительный username на Fragment; иначе рендерер подставляет `emoji` |
-| `style` | Цвет: `primary` (синий), `success` (зелёный), `danger` (красный); не задан — стандартный. Произвольных цветов Telegram не поддерживает |
-| `visible_if` | Условие показа — именованное условие модуля (`trial.available`), а не произвольный код |
-| `disabled_if` | Показать кнопку неактивной (серой, без действия), например «Продлить» у подписки на паузе |
+| `text` | Надпись по языкам или ключ i18n; поддерживает шаблоны: `Продлить до {{ .ExpiresAt \| date }}` |
+| `emoji` | Обычный эмодзи перед надписью — работает всегда (можно писать и прямо в `text`) |
+| `icon` | ID кастомного эмодзи Telegram. Работает, только если у владельца бота Telegram Premium (в личных чатах) или бот купил дополнительный username на Fragment; иначе рендерер подставляет `emoji` |
+| `style` | Цвет: `primary` (синий), `success` (зелёный), `danger` (красный); внутри тела сообщения — ещё `link` (без рамки). Произвольных цветов Telegram не поддерживает |
+| `visible_if` / `disabled_if` | Скрыть кнопку или показать неактивной (серой, без действия) по именованному условию модуля (`trial.available`), а не по произвольному коду |
 
-**Списки** (тарифы, подписки пользователя) — слот, который заполняет модуль, а тема управляет раскладкой:
-`- { slot: shop.plans, columns: 2, style: primary }`. Если элементов много — постраничность «◀️ 1/3 ▶️» добавляется автоматически.
+#### Действия, исходы и маршруты
 
-**Кнопки из других модулей.** Модуль может добавить свою кнопку в чужой экран (`referral` — «Пригласить» в главное меню)
-с порядком по умолчанию. Если тема явно перечисляет `buttons`, действует её раскладка; `hide: [referral.open]` убирает кнопку.
+Каждое действие объявляет свои параметры и исходы, а модуль даёт экраны по умолчанию для каждого исхода.
+Переопределить их можно у конкретной кнопки (`on`) или глобально:
 
-**Формат сообщений: rich messages (новинка Bot API 10.1–10.3, июнь–август 2026).** Новый метод `sendRichMessage` принимает
-текст в **Markdown** (или HTML, или готовыми блоками): заголовки, списки, таблицы, цитаты, раскрывающиеся блоки,
-фото и коллажи прямо в теле сообщения, а с 10.3 — ещё и блок кнопок внутри сообщения с выравниванием
-(left / center / right) и дополнительным стилем `link` (кнопка-ссылка без рамки). Точный синтаксис Markdown — раздел
-«Rich message formatting options» документации Bot API; сверить при реализации.
+```yaml
+# ui/routes.yaml
+actions:                                    # исход действия → экран
+  trial.start:      { ok: trial_started, already_used: trial_used, need_channel: join_channel }
+  billing.checkout: { invoice: invoice, limit_reached: limit_screen }
+events:                                     # экраны для событий вне нажатий
+  billing.order.paid:     payment_success
+  subscriptions.expiring: expiring_notice   # напоминание — тоже экран темы, со своими кнопками
+commands:                                   # команды бота → экраны
+  start: { new_user: welcome, default: main_menu }
+  menu:  main_menu
+  help:  faq
+```
 
-**Два рендерера** — гостевые модули `telegram.renderers.*`, выбор в конфиге (`telegram.renderer`):
+#### Списки из данных
+
+```yaml
+# ui/screens/my_subs.yaml
+id: my_subs
+data: { Subs: subscriptions.list }
+empty: no_subs                              # подписок нет — показать экран no_subs
+blocks:
+  - text: { ru: "Ваши подписки ({{ len .Subs }}):" }
+keyboard:
+  - repeat: .Subs                           # по кнопке на каждую подписку
+    columns: 1
+    page_size: 6                            # больше — постранично «◀️ 1/3 ▶️»
+    button: { text: "{{ .Label }} · до {{ .ExpiresAt | date }}", goto: sub_card, params: { id: "{{ .ID }}" } }
+  - [ { text: { ru: "➕ Новая подписка" }, goto: plans, style: success } ]
+  - use: back_row                           # фрагмент из fragments.yaml
+```
+
+Так же устроены списки тарифов, способов оплаты и устройств. Карточка подписки получает `id` из кнопки:
+
+```yaml
+# ui/screens/sub_card.yaml
+id: sub_card
+data: { Sub: subscriptions.get }            # параметр id берётся из кнопки
+blocks:
+  - text: { ru: "**{{ .Sub.Label }}**\nДо: {{ .Sub.ExpiresAt | date }}\nТрафик: {{ .Sub.Used | bytes }} из {{ .Sub.Limit | bytes }}" }
+keyboard:
+  - [ { text: { ru: "📋 Скопировать ссылку" }, copy_text: "{{ .Sub.URL }}" } ]
+  - [ { text: { ru: "🔄 Продлить" }, action: billing.checkout, params: { renew: "{{ .Sub.ID }}" }, style: success } ]
+  - [ { text: { ru: "✏️ Переименовать" }, goto: sub_rename, params: { id: "{{ .Sub.ID }}" } } ]
+  - [ { text: { ru: "♻️ Перевыпустить ссылку" }, action: subscriptions.revoke, params: { id: "{{ .Sub.ID }}" },
+        style: danger, confirm: revoke_confirm, visible_if: sub.can_revoke } ]
+  - use: back_row
+```
+
+#### Свои страницы без кода
+
+Инструкции по подключению, FAQ, «О сервисе», правила — обычные экраны темы, связанные через `goto`:
+
+```yaml
+id: guide
+blocks: [ { text: { ru: "Выберите устройство:" } } ]
+keyboard:
+  - [ { text: "📱 iPhone", goto: guide_ios },     { text: "🤖 Android", goto: guide_android } ]
+  - [ { text: "💻 Windows", goto: guide_windows }, { text: "🍏 macOS", goto: guide_macos } ]
+  - use: back_row
+```
+
+#### Ввод текста
+
+Экран может ждать ответ пользователя, и следующее сообщение уходит в действие:
+`input: { action: subscriptions.rename, param: label, on: { ok: sub_card, invalid: rename_error } }`.
+
+#### Схема навигации
+
+`tors ui graph` строит схему всей темы — какие экраны есть и какие кнопки куда ведут. Фрагмент для стандартной темы:
+
+```mermaid
+flowchart LR
+    main_menu -->|Купить| plans
+    main_menu -->|Мои подписки| my_subs
+    main_menu -->|Как подключиться| guide
+    plans -->|тариф| plan_card
+    plan_card -->|оплатить| invoice
+    invoice -.->|оплата прошла| payment_success
+    my_subs -->|подписка| sub_card
+    my_subs -.->|пусто| no_subs
+    sub_card -->|Продлить| invoice
+    guide --> guide_ios
+    guide --> guide_android
+```
+
+#### Формат сообщений и рендереры
+
+**Rich messages** (Bot API 10.1–10.3, июнь–август 2026): метод `sendRichMessage` принимает текст в **Markdown**
+(или HTML, или готовыми блоками) — заголовки, списки, таблицы, цитаты, раскрывающиеся блоки, фото и коллажи
+в теле сообщения, а с 10.3 — блок кнопок внутри сообщения с выравниванием. Точный синтаксис Markdown — раздел
+«Rich message formatting options» документации Bot API; сверить при реализации. Для тем это не важно: Markdown
+для Telegram собирает рендерер.
+
+Два рендерера — гостевые модули `telegram.renderers.*`, выбор в конфиге (`telegram.renderer`):
 
 | | `rich` (по умолчанию) | `classic` (запасной) |
 |---|---|---|
 | Отправка | `sendRichMessage` | `sendPhoto` с подписью или `sendMessage` |
 | Текст | Markdown как есть | Markdown → Telegram HTML (`goldmark`); таблицы и заголовки упрощаются |
-| Фото сверху/снизу | Блок фото до или после текста | `show_caption_above_media` |
-| Кнопки | Под сообщением или внутри него (`placement: body`) | Только под сообщением |
-| Переход между экранами | Всегда редактирование одного сообщения — фото лишь блок | Экран с фото ↔ без фото: удалить и отправить заново (Telegram не превращает текст в медиа правкой) |
+| Фото | Блок в любом месте тела | Только над текстом или под ним (`show_caption_above_media`) |
+| Кнопки внутри тела | Да, между любыми блоками | Переносятся под сообщение (`tors validate` предупреждает) |
+| Переход между экранами | Всегда правка одного сообщения — фото лишь блок | Экран с фото ↔ без фото: удалить и отправить заново |
 
 Rich messages появились в июне 2026. Как их показывают старые версии приложений и сторонние клиенты — проверить в фазе 3.
-Если что-то не так, включается `classic`; темы при этом не меняются, потому что формат экрана один.
+Если что-то не так, включается `classic`; темы при этом не меняются.
 
-**Инструменты**
+#### Точность расположения: что можно и чего нельзя
 
-- `tors validate` проверяет темы: неизвестные действия и слоты, недопустимый `style`, ошибки шаблонов,
-  отсутствующие переводы, длину callback-данных, лимиты Telegram на число кнопок.
-- `tors ui preview main_menu --lang ru` отправляет экран в админ-чат с тестовыми данными.
-- Перезагрузка темы без рестарта — команда админа `/reload_ui`: экраны — это данные.
-- Фаза 9: редактор экранов в админке или Mini App, экраны хранятся в БД (`telegram.ui.sources.db`).
+- Можно: точный ряд и место в ряду для каждой кнопки; кнопки внутри тела — между любыми блоками текста и фото,
+  с выравниванием; порядок блоков; фото в любом месте тела (rich).
+- Нельзя (ограничения Telegram): ширину отдельной кнопки — кнопки в ряду делят ширину поровну; размер и шрифт текста —
+  только разметка (заголовки, жирный и т.п.); произвольный цвет кнопки.
+- У Telegram есть лимиты на число кнопок в ряду и в сообщении и на длину данных кнопки — `tors validate` проверяет их
+  (точные значения сверить при реализации).
+
+#### Безопасность параметров
+
+Параметры кнопок (например, `id` подписки) лежат в данных кнопки или в токене в `kv`, и пользователь может их подделать.
+Поэтому каждое действие и каждый провайдер данных проверяет права: подписка принадлежит этому пользователю,
+тариф доступен и т.д.
+
+#### Инструменты
+
+- `tors validate` — все `goto`, `on`, `events` и `commands` ведут на существующие экраны; у каждого действия сопоставлены
+  все исходы; данные и параметры совпадают с объявленными модулями; ошибки шаблонов, переводы, лимиты Telegram;
+  недостижимые экраны — предупреждение.
+- `tors ui graph` — схема навигации (Mermaid).
+- `tors ui docs` — для каждого провайдера данных и действия: параметры, поля для шаблонов, исходы.
+- `tors ui export` — выгрузить стандартную тему в файлы.
+- `tors ui preview <экран> --lang ru` — прислать экран в админ-чат с тестовыми данными.
+- `/reload_ui` — перезагрузка темы без рестарта; при ошибке валидации остаётся прежняя тема.
+- Фаза 9 — визуальный редактор экранов и переходов в админке или Mini App, тема хранится в БД (`telegram.ui.sources.db`).
 
 ---
 
@@ -1056,11 +1188,15 @@ apps:
 package support
 
 import (
+	"embed"
 	"errors"
 
 	"github.com/tori43-hash/tors"
 	"github.com/tori43-hash/tors/modules/telegram"
 )
+
+//go:embed ui
+var defaultTheme embed.FS // ui/support.yaml: экран support и кнопка в главном меню стандартной темы
 
 func init() { tors.RegisterModule(Support{}) }
 
@@ -1084,15 +1220,13 @@ func (s *Support) Validate() error {
 }
 
 func (s *Support) Register(r telegram.Router) error {
-	r.Action("support.open", s.open)
-	r.Command("support", s.open)
-	r.Contribute("main_menu", telegram.Button{Action: "support.open", TextKey: "support.menu", Emoji: "💬", Order: 900})
+	r.Data("support.info", telegram.DataFunc(s.info)) // в теме: data: { Support: support.info }
+	r.DefaultTheme(defaultTheme)
 	return nil
 }
 
-func (s *Support) open(c *telegram.Ctx) error {
-	// экран "support" описан в locales/ и может быть переопределён темой
-	return c.Show("support", map[string]any{"Contact": s.Contact})
+func (s *Support) info(c *telegram.Ctx, _ telegram.Params) (any, error) {
+	return map[string]any{"Contact": s.Contact}, nil
 }
 
 var (
@@ -1266,7 +1400,7 @@ func main() { torscmd.Main() }
 | **0. Фундамент** | `go.mod`, линтеры и правила зависимостей, CI, Taskfile, шаблон ADR | CI зелёный на пустом каркасе | S |
 | **1. Ядро** | Реестр, `Context`, все формы `LoadModule`, жизненный цикл с откатом, config + плейсхолдеры + `Duration`/`Size`, адаптеры, события, логи, CLI (`run/validate/adapt/list-modules/version`), YAML-адаптер | Демо-приложение `hello` запускается из YAML; ≥85% покрытия; ядро без внешних зависимостей | M |
 | **2. Инфраструктура** | `database` (pgx, схема на модуль, tx, миграции по модулям, без доступа модулей к общему пулу), `jobs` (River, cron, durable-события), `kv` (memory, postgres), `http`, `i18n` | `docker compose up` поднимает бинарь + Postgres; миграции модулей применяются независимо | M |
-| **3. Telegram** | Приложение, polling/webhook, роутер, middleware, экраны-как-данные и темы, рендереры `rich` и `classic`, сцены, `Sender` с лимитами; `start`, `main_menu`, `language`, `support` | Бот отвечает; экраны собираются из включённых модулей; тема меняет текст, фото, раскладку и цвета кнопок без пересборки | M |
+| **3. Telegram** | Приложение, polling/webhook, роутер, middleware, UI как данные (экраны, переходы, действия с исходами, провайдеры данных, темы, `tors ui`), рендереры `rich` и `classic`, сцены, `Sender` с лимитами; `start`, `main_menu`, `language`, `support` | Бот отвечает; экраны собираются из включённых модулей; тема задаёт экраны, тексты, фото, раскладку и цвета кнопок и все переходы, включая свои страницы, без пересборки | M/L |
 | **4. Домен + Remnawave** | `users`, `catalog` (config), контракт `panels` + `fake` + `panelstest`, провайдер Remnawave (+вебхуки), `subscriptions` (несколько на пользователя, `Grant`, reconcile, напоминания), `my_subscriptions` (список, ссылка, QR, имя) | Команда выдаёт пользователю две подписки → в Remnawave два аккаунта, обе ссылки работают | L |
 | **5. Биллинг = MVP** | `billing` (заказы, платежи, `Confirm`, pricing), шлюзы `telegram_stars` + `fake`, `shop` (новая / продлить выбранную), выдача через durable-события, `notifications` | E2E: покупка новой и продление выбранной подписки за Stars; повторный `successful_payment` не продлевает дважды; при недоступной панели выдача ретраится | L |
 | **6. Рост и админка** | `trial`, `promo`, `referral` (бонусные дни), `wallet` + шлюз `balance`, `admin` (статистика, карточка, выдача дней, возврат Stars, рассылка), `broadcast`, `metrics`, роли Postgres на модуль и `tors db provision` (§14.1) | Фичи включаются/выключаются только конфигом; модуль под своей ролью не может прочитать чужую схему | M |
@@ -1296,7 +1430,8 @@ func main() { torscmd.Main() }
     для кода в процессе — проверка возможностей при сборке и минимизация секретов; изоляция недоверенного кода — только вне процесса.
 13. **ADR-013** Событие `X.*` публикует только модуль `X`; обработчики, выдающие ценное, перепроверяют факт у источника.
 14. **ADR-014** Клиент Remnawave — SDK `remnawave-api-go/v3` с зафиксированной версией внутри провайдера; запасной путь — форк или своя генерация.
-15. **ADR-015** UI — экраны как данные (тема в YAML); рендерер по умолчанию — rich messages, запасной — classic.
+15. **ADR-015** UI как данные: модули дают данные и действия с исходами, тема (YAML) задаёт экраны, кнопки и все переходы;
+    рендерер по умолчанию — rich messages, запасной — classic.
 
 ## 19. Риски
 
