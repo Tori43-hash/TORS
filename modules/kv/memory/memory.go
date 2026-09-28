@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/tori43-hash/tors"
+	"github.com/tori43-hash/tors/market"
 )
 
 func init() { tors.RegisterModule(new(Store)) }
@@ -24,6 +25,13 @@ type Store struct {
 
 func (*Store) TorsModule() tors.ModuleInfo {
 	return tors.ModuleInfo{ID: "kv.stores.memory", New: func() tors.Module { return new(Store) }}
+}
+
+func (*Store) Market() market.Info {
+	return market.Info{
+		Name: "Хранение в памяти", Summary: "Состояние диалогов теряется при перезапуске. Для проверки бота.",
+		Category: "core", Hidden: true, Host: &market.Host{App: "kv", Field: "store", Key: "store"},
+	}
 }
 
 func (s *Store) Get(_ context.Context, key string) ([]byte, bool, error) {

@@ -99,7 +99,7 @@ func (*App) Market() market.Info {
 		Name:     "Оплата",
 		Summary:  "Заказы и оплата тарифов. Способ оплаты подключается отдельно.",
 		Category: "sales",
-		Requires: []string{"catalog"},
+		Requires: []string{"catalog", "database", "jobs", "ui"},
 		Needs:    []string{"billing.gateways"},
 	}
 }

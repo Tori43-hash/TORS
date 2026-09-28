@@ -76,13 +76,14 @@ func (*App) Market() market.Info {
 		Name:     "Telegram-бот",
 		Summary:  "Показывает экраны из холста, обрабатывает нажатия, ввод и события.",
 		Category: "core",
+		Hidden:   true,
 		Requires: []string{"users", "ui", "kv"},
 		Config: []market.Field{
 			{Key: "token", Title: "Токен бота", Type: "secret", Default: "{env.BOT_TOKEN}", Required: true,
 				Hint: "Выдаёт @BotFather. Лучше хранить в переменной окружения"},
 			{Key: "transport", Title: "Получение обновлений", Type: "select", Default: "polling", Options: []market.Option{
 				{Value: "polling", Title: "Опрос (проще, для одного сервера)"},
-				{Value: "webhook", Title: "Вебхук (нужен публичный адрес)"},
+				{Value: "webhook", Title: "Вебхук (нужен публичный адрес)", Requires: []string{"http"}},
 			}},
 		},
 	}

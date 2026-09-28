@@ -1,0 +1,1439 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "id": "billing",
+      "package": "github.com/tori43-hash/tors/modules/billing",
+      "trust": "official",
+      "name": "Оплата",
+      "summary": "Заказы и оплата тарифов. Способ оплаты подключается отдельно.",
+      "category": "sales",
+      "requires": [
+        "catalog",
+        "database",
+        "jobs",
+        "ui"
+      ],
+      "needs": [
+        "billing.gateways"
+      ],
+      "ui": {
+        "actions": {
+          "billing.checkout": {
+            "title": "Оплатить тариф",
+            "label": {
+              "en": "Pay",
+              "ru": "Оплатить"
+            },
+            "params": [
+              "plan"
+            ],
+            "outcomes": [
+              {
+                "name": "invoice",
+                "title": "Отправлен счёт",
+                "terminal": true
+              }
+            ]
+          }
+        },
+        "screens": {
+          "plan": {
+            "data": {
+              "plan": "catalog.plan"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**{{ .plan.Title }}**\n\nPeriod: {{ .plan.Days }} {{ plural .plan.Days \"day\" \"days\" }}\nTraffic: {{ if .plan.Traffic }}{{ .plan.Traffic | bytes }}{{ else }}unlimited{{ end }}\nDevices: {{ if .plan.Devices }}{{ .plan.Devices }}{{ else }}unlimited{{ end }}\n\nPrice: **{{ .plan.Price }} ⭐**",
+                  "ru": "**{{ .plan.Title }}**\n\nСрок: {{ .plan.Days }} {{ plural .plan.Days \"день\" \"дня\" \"дней\" }}\nТрафик: {{ if .plan.Traffic }}{{ .plan.Traffic | bytes }}{{ else }}без ограничений{{ end }}\nУстройств: {{ if .plan.Devices }}{{ .plan.Devices }}{{ else }}без ограничений{{ end }}\n\nСтоимость: **{{ .plan.Price }} ⭐**"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Pay",
+                    "ru": "Оплатить"
+                  },
+                  "action": "billing.checkout",
+                  "params": {
+                    "plan": "{{ .Params.plan }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "plans": {
+            "data": {
+              "plans": "catalog.plans"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**Plans**\n\nChoose a subscription period.",
+                  "ru": "**Тарифы**\n\nВыберите срок подписки."
+                }
+              }
+            ],
+            "keyboard": [
+              {
+                "repeat": ".plans",
+                "columns": 1,
+                "button": {
+                  "text": {
+                    "en": "{{ .Title }} · {{ .Price }} ⭐",
+                    "ru": "{{ .Title }} · {{ .Price }} ⭐"
+                  },
+                  "goto": "plan",
+                  "params": {
+                    "plan": "{{ .ID }}"
+                  }
+                }
+              },
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "billing.gateways.stars",
+      "package": "github.com/tori43-hash/tors/modules/billing/stars",
+      "trust": "official",
+      "name": "Telegram Stars",
+      "summary": "Оплата звёздами прямо в Telegram, без платёжного провайдера.",
+      "category": "payment",
+      "default": true,
+      "requires": [
+        "billing",
+        "telegram"
+      ],
+      "host": {
+        "app": "billing",
+        "field": "gateway",
+        "key": "gateway"
+      }
+    },
+    {
+      "id": "catalog",
+      "package": "github.com/tori43-hash/tors/modules/catalog",
+      "trust": "official",
+      "name": "Тарифы",
+      "summary": "Список тарифов: срок, трафик, устройства и цена в звёздах.",
+      "category": "sales",
+      "requires": [
+        "ui"
+      ],
+      "config": [
+        {
+          "key": "plans",
+          "title": "Тарифы",
+          "type": "list",
+          "default": [
+            {
+              "days": 30,
+              "devices": 3,
+              "id": "month",
+              "price": 150,
+              "title": {
+                "en": "1 month",
+                "ru": "1 месяц"
+              },
+              "traffic_gb": 200
+            },
+            {
+              "days": 365,
+              "devices": 5,
+              "id": "year",
+              "price": 1400,
+              "title": {
+                "en": "12 months",
+                "ru": "12 месяцев"
+              }
+            }
+          ],
+          "required": true,
+          "item": [
+            {
+              "key": "id",
+              "title": "Код",
+              "hint": "Латиница, не меняется после запуска",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "title",
+              "title": "Название",
+              "type": "i18n",
+              "required": true
+            },
+            {
+              "key": "days",
+              "title": "Дней",
+              "type": "number",
+              "required": true
+            },
+            {
+              "key": "traffic_gb",
+              "title": "Трафик, ГБ",
+              "hint": "0 — без ограничений",
+              "type": "number"
+            },
+            {
+              "key": "devices",
+              "title": "Устройств",
+              "hint": "0 — без ограничений",
+              "type": "number"
+            },
+            {
+              "key": "price",
+              "title": "Цена, звёзд",
+              "type": "number",
+              "required": true
+            },
+            {
+              "key": "panel",
+              "title": "Панель",
+              "type": "select",
+              "options_from": "panels"
+            }
+          ]
+        }
+      ],
+      "ui": {
+        "data": {
+          "catalog.plan": {
+            "title": "Тариф",
+            "params": [
+              "plan"
+            ],
+            "fields": [
+              {
+                "name": "ID",
+                "type": "string",
+                "title": "Код"
+              },
+              {
+                "name": "Title",
+                "type": "string",
+                "title": "Название"
+              },
+              {
+                "name": "Days",
+                "type": "int",
+                "title": "Дней"
+              },
+              {
+                "name": "Traffic",
+                "type": "bytes",
+                "title": "Трафик (0 — без ограничений)"
+              },
+              {
+                "name": "Devices",
+                "type": "int",
+                "title": "Устройств (0 — без ограничений)"
+              },
+              {
+                "name": "Price",
+                "type": "int",
+                "title": "Цена, звёзд"
+              }
+            ],
+            "samples": [
+              {
+                "Days": 30,
+                "Devices": 3,
+                "ID": "month",
+                "Price": 150,
+                "Title": "1 месяц",
+                "Traffic": 214748364800
+              }
+            ]
+          },
+          "catalog.plans": {
+            "title": "Тарифы",
+            "list": true,
+            "fields": [
+              {
+                "name": "ID",
+                "type": "string",
+                "title": "Код"
+              },
+              {
+                "name": "Title",
+                "type": "string",
+                "title": "Название"
+              },
+              {
+                "name": "Days",
+                "type": "int",
+                "title": "Дней"
+              },
+              {
+                "name": "Traffic",
+                "type": "bytes",
+                "title": "Трафик (0 — без ограничений)"
+              },
+              {
+                "name": "Devices",
+                "type": "int",
+                "title": "Устройств (0 — без ограничений)"
+              },
+              {
+                "name": "Price",
+                "type": "int",
+                "title": "Цена, звёзд"
+              }
+            ],
+            "samples": [
+              {
+                "Days": 30,
+                "Devices": 3,
+                "ID": "month",
+                "Price": 150,
+                "Title": "1 месяц",
+                "Traffic": 214748364800
+              },
+              {
+                "Days": 365,
+                "Devices": 5,
+                "ID": "year",
+                "Price": 1400,
+                "Title": "12 месяцев",
+                "Traffic": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "database",
+      "package": "github.com/tori43-hash/tors/modules/database",
+      "trust": "official",
+      "name": "PostgreSQL",
+      "summary": "База данных бота.",
+      "category": "core",
+      "hidden": true,
+      "config": [
+        {
+          "key": "dsn",
+          "title": "Строка подключения",
+          "type": "secret",
+          "default": "{env.DATABASE_URL}",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "http",
+      "package": "github.com/tori43-hash/tors/modules/httpserver",
+      "trust": "official",
+      "name": "HTTP-сервер",
+      "summary": "Принимает вебхуки Telegram и отвечает на проверки здоровья.",
+      "category": "core",
+      "hidden": true,
+      "config": [
+        {
+          "key": "listen",
+          "title": "Адрес",
+          "type": "text",
+          "default": ":8080"
+        },
+        {
+          "key": "public_url",
+          "title": "Публичный адрес",
+          "type": "text",
+          "placeholder": "https://bot.example.com",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "jobs",
+      "package": "github.com/tori43-hash/tors/modules/jobs",
+      "trust": "official",
+      "name": "Фоновые задачи",
+      "summary": "Очередь задач и события, которые не теряются при перезапуске.",
+      "category": "core",
+      "hidden": true,
+      "requires": [
+        "database"
+      ]
+    },
+    {
+      "id": "kv",
+      "package": "github.com/tori43-hash/tors/modules/kv",
+      "trust": "official",
+      "name": "Состояние диалогов",
+      "summary": "Кнопки и ввод текста между сообщениями.",
+      "category": "core",
+      "hidden": true,
+      "needs": [
+        "kv.stores"
+      ]
+    },
+    {
+      "id": "kv.stores.memory",
+      "package": "github.com/tori43-hash/tors/modules/kv/memory",
+      "trust": "official",
+      "name": "Хранение в памяти",
+      "summary": "Состояние диалогов теряется при перезапуске. Для проверки бота.",
+      "category": "core",
+      "hidden": true,
+      "host": {
+        "app": "kv",
+        "field": "store",
+        "key": "store"
+      }
+    },
+    {
+      "id": "kv.stores.postgres",
+      "package": "github.com/tori43-hash/tors/modules/kv/postgres",
+      "trust": "official",
+      "name": "Хранение в PostgreSQL",
+      "summary": "Состояние диалогов переживает перезапуск.",
+      "category": "core",
+      "hidden": true,
+      "default": true,
+      "requires": [
+        "database"
+      ],
+      "host": {
+        "app": "kv",
+        "field": "store",
+        "key": "store"
+      }
+    },
+    {
+      "id": "panels",
+      "package": "github.com/tori43-hash/tors/modules/panels",
+      "trust": "official",
+      "name": "Панели",
+      "summary": "Панели, на которых создаются подписки.",
+      "category": "core",
+      "hidden": true,
+      "needs": [
+        "panels.providers"
+      ]
+    },
+    {
+      "id": "panels.providers.fake",
+      "package": "github.com/tori43-hash/tors/modules/panels/fake",
+      "trust": "official",
+      "name": "Тестовая панель",
+      "summary": "Хранит подписки в памяти. Чтобы попробовать бота до подключения настоящей панели.",
+      "category": "panel",
+      "requires": [
+        "panels"
+      ],
+      "host": {
+        "app": "panels",
+        "field": "providers",
+        "key": "provider",
+        "named": true
+      }
+    },
+    {
+      "id": "panels.providers.remnawave",
+      "package": "github.com/tori43-hash/tors/modules/panels/remnawave",
+      "trust": "official",
+      "name": "Remnawave",
+      "summary": "Создаёт и продлевает подписки в панели Remnawave 3.x.",
+      "category": "panel",
+      "requires": [
+        "panels"
+      ],
+      "host": {
+        "app": "panels",
+        "field": "providers",
+        "key": "provider",
+        "named": true
+      },
+      "config": [
+        {
+          "key": "url",
+          "title": "Адрес панели",
+          "type": "text",
+          "placeholder": "https://panel.example.com",
+          "required": true
+        },
+        {
+          "key": "token",
+          "title": "API-токен",
+          "hint": "Создаётся в панели: Настройки → API-токены",
+          "type": "secret",
+          "default": "{env.REMNAWAVE_TOKEN}",
+          "required": true
+        },
+        {
+          "key": "squads",
+          "title": "Внутренние сквады",
+          "hint": "UUID сквадов для тарифов, у которых они не указаны",
+          "type": "strings"
+        }
+      ]
+    },
+    {
+      "id": "subscriptions",
+      "package": "github.com/tori43-hash/tors/modules/subscriptions",
+      "trust": "official",
+      "name": "Подписки",
+      "summary": "Подписки пользователей: выдача после оплаты, продление, ссылка, напоминания.",
+      "category": "sales",
+      "requires": [
+        "billing",
+        "catalog",
+        "panels",
+        "users",
+        "database",
+        "jobs",
+        "ui"
+      ],
+      "needs": [
+        "panels.providers"
+      ],
+      "config": [
+        {
+          "key": "remind_days",
+          "title": "Напоминать за, дней",
+          "hint": "0 — не напоминать",
+          "type": "number",
+          "default": 3
+        }
+      ],
+      "ui": {
+        "data": {
+          "subscriptions.get": {
+            "title": "Подписка",
+            "params": [
+              "id"
+            ],
+            "fields": [
+              {
+                "name": "ID",
+                "type": "int",
+                "title": "Номер"
+              },
+              {
+                "name": "Label",
+                "type": "string",
+                "title": "Название"
+              },
+              {
+                "name": "Status",
+                "type": "string",
+                "title": "Статус: active, expired"
+              },
+              {
+                "name": "ExpiresAt",
+                "type": "time",
+                "title": "Действует до"
+              },
+              {
+                "name": "Limit",
+                "type": "bytes",
+                "title": "Лимит трафика (0 — без ограничений)"
+              },
+              {
+                "name": "Devices",
+                "type": "int",
+                "title": "Лимит устройств (0 — без ограничений)"
+              },
+              {
+                "name": "URL",
+                "type": "url",
+                "title": "Ссылка подписки"
+              },
+              {
+                "name": "Used",
+                "type": "bytes",
+                "title": "Израсходовано"
+              }
+            ],
+            "samples": [
+              {
+                "Devices": 3,
+                "ExpiresAt": "2026-10-28T12:00:00Z",
+                "ID": 17,
+                "Label": "Телефон",
+                "Limit": 214748364800,
+                "Status": "active",
+                "URL": "https://sub.example.com/Xk2p9QaL",
+                "Used": 13421772800
+              }
+            ]
+          },
+          "subscriptions.list": {
+            "title": "Мои подписки",
+            "list": true,
+            "fields": [
+              {
+                "name": "ID",
+                "type": "int",
+                "title": "Номер"
+              },
+              {
+                "name": "Label",
+                "type": "string",
+                "title": "Название"
+              },
+              {
+                "name": "Status",
+                "type": "string",
+                "title": "Статус: active, expired"
+              },
+              {
+                "name": "ExpiresAt",
+                "type": "time",
+                "title": "Действует до"
+              },
+              {
+                "name": "Limit",
+                "type": "bytes",
+                "title": "Лимит трафика (0 — без ограничений)"
+              },
+              {
+                "name": "Devices",
+                "type": "int",
+                "title": "Лимит устройств (0 — без ограничений)"
+              },
+              {
+                "name": "URL",
+                "type": "url",
+                "title": "Ссылка подписки"
+              }
+            ],
+            "samples": [
+              {
+                "Devices": 3,
+                "ExpiresAt": "2026-10-28T12:00:00Z",
+                "ID": 17,
+                "Label": "Телефон",
+                "Limit": 214748364800,
+                "Status": "active",
+                "URL": "https://sub.example.com/Xk2p9QaL",
+                "Used": 13421772800
+              },
+              {
+                "Devices": 0,
+                "ExpiresAt": "2026-09-01T12:00:00Z",
+                "ID": 21,
+                "Label": "Ноутбук",
+                "Limit": 0,
+                "Status": "expired",
+                "URL": "https://sub.example.com/Pq81LmZe"
+              }
+            ]
+          }
+        },
+        "actions": {
+          "subscriptions.rename": {
+            "title": "Переименовать",
+            "params": [
+              "id",
+              "label"
+            ],
+            "input": true,
+            "outcomes": [
+              {
+                "name": "ok",
+                "title": "Готово",
+                "default": "sub"
+              },
+              {
+                "name": "invalid",
+                "title": "Не подходит",
+                "default": "sub_rename"
+              }
+            ]
+          },
+          "subscriptions.renew": {
+            "title": "Продлить",
+            "label": {
+              "en": "Renew",
+              "ru": "Продлить"
+            },
+            "params": [
+              "id"
+            ],
+            "outcomes": [
+              {
+                "name": "invoice",
+                "title": "Отправлен счёт",
+                "terminal": true
+              }
+            ]
+          },
+          "subscriptions.revoke": {
+            "title": "Новая ссылка",
+            "params": [
+              "id"
+            ],
+            "outcomes": [
+              {
+                "name": "ok",
+                "title": "Готово",
+                "default": "sub"
+              }
+            ]
+          }
+        },
+        "conditions": {
+          "subscriptions.any": {
+            "title": "Есть подписки",
+            "sample": true
+          }
+        },
+        "events": {
+          "subscriptions.expired": {
+            "title": "Закончилась",
+            "default": "sub_expired",
+            "fields": [
+              {
+                "name": "ID",
+                "type": "int",
+                "title": "Номер",
+                "sample": 21
+              },
+              {
+                "name": "Label",
+                "type": "string",
+                "title": "Название",
+                "sample": "Ноутбук"
+              }
+            ]
+          },
+          "subscriptions.expiring": {
+            "title": "Скоро закончится",
+            "default": "sub_expiring",
+            "fields": [
+              {
+                "name": "ID",
+                "type": "int",
+                "title": "Номер",
+                "sample": 17
+              },
+              {
+                "name": "Label",
+                "type": "string",
+                "title": "Название",
+                "sample": "Телефон"
+              },
+              {
+                "name": "ExpiresAt",
+                "type": "time",
+                "title": "Действует до",
+                "sample": "2026-10-01T12:00:00Z"
+              },
+              {
+                "name": "DaysLeft",
+                "type": "int",
+                "title": "Осталось дней",
+                "sample": 3
+              }
+            ]
+          },
+          "subscriptions.paid": {
+            "title": "Оплата прошла",
+            "default": "sub_paid",
+            "fields": [
+              {
+                "name": "ID",
+                "type": "int",
+                "title": "Номер",
+                "sample": 17
+              },
+              {
+                "name": "Label",
+                "type": "string",
+                "title": "Название",
+                "sample": "Телефон"
+              },
+              {
+                "name": "ExpiresAt",
+                "type": "time",
+                "title": "Действует до",
+                "sample": "2026-10-28T12:00:00Z"
+              },
+              {
+                "name": "URL",
+                "type": "url",
+                "title": "Ссылка подписки",
+                "sample": "https://sub.example.com/Xk2p9QaL"
+              }
+            ]
+          }
+        },
+        "screens": {
+          "my_subs": {
+            "data": {
+              "subs": "subscriptions.list"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**My subscriptions**",
+                  "ru": "**Мои подписки**"
+                }
+              }
+            ],
+            "keyboard": [
+              {
+                "repeat": ".subs",
+                "columns": 1,
+                "page_size": 6,
+                "button": {
+                  "text": {
+                    "en": "{{ .Label }} · {{ if eq .Status \"active\" }}until {{ .ExpiresAt | date }}{{ else }}ended{{ end }}",
+                    "ru": "{{ .Label }} · {{ if eq .Status \"active\" }}до {{ .ExpiresAt | date }}{{ else }}закончилась{{ end }}"
+                  },
+                  "goto": "sub",
+                  "params": {
+                    "id": "{{ .ID }}"
+                  }
+                }
+              },
+              [
+                {
+                  "text": {
+                    "en": "Buy a subscription",
+                    "ru": "Купить подписку"
+                  },
+                  "goto": "plans"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ],
+            "empty": "no_subs"
+          },
+          "no_subs": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "You have no subscriptions yet.",
+                  "ru": "У вас пока нет подписок."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Choose a plan",
+                    "ru": "Выбрать тариф"
+                  },
+                  "goto": "plans"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "sub": {
+            "data": {
+              "sub": "subscriptions.get"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**{{ .sub.Label }}**\n\n{{ if eq .sub.Status \"active\" }}Valid until {{ .sub.ExpiresAt | date }}{{ else }}Ended {{ .sub.ExpiresAt | date }}{{ end }}\nTraffic: {{ .sub.Used | bytes }}{{ if .sub.Limit }} of {{ .sub.Limit | bytes }}{{ end }}\n\nLink for the app:\n`{{ .sub.URL }}`",
+                  "ru": "**{{ .sub.Label }}**\n\n{{ if eq .sub.Status \"active\" }}Действует до {{ .sub.ExpiresAt | date }}{{ else }}Закончилась {{ .sub.ExpiresAt | date }}{{ end }}\nТрафик: {{ .sub.Used | bytes }}{{ if .sub.Limit }} из {{ .sub.Limit | bytes }}{{ end }}\n\nСсылка для приложения:\n`{{ .sub.URL }}`"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Copy link",
+                    "ru": "Скопировать ссылку"
+                  },
+                  "copy_text": "{{ .sub.URL }}"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Renew",
+                    "ru": "Продлить"
+                  },
+                  "action": "subscriptions.renew",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Rename",
+                    "ru": "Переименовать"
+                  },
+                  "goto": "sub_rename",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                },
+                {
+                  "text": {
+                    "en": "New link",
+                    "ru": "Новая ссылка"
+                  },
+                  "goto": "sub_revoke",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          },
+          "sub_expired": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "Subscription “{{ .Event.Label }}” has ended.",
+                  "ru": "Подписка «{{ .Event.Label }}» закончилась."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Renew",
+                    "ru": "Продлить"
+                  },
+                  "action": "subscriptions.renew",
+                  "params": {
+                    "id": "{{ .Event.ID }}"
+                  }
+                }
+              ]
+            ]
+          },
+          "sub_expiring": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "Subscription “{{ .Event.Label }}” ends in {{ .Event.DaysLeft }} {{ plural .Event.DaysLeft \"day\" \"days\" }}.",
+                  "ru": "Подписка «{{ .Event.Label }}» закончится через {{ .Event.DaysLeft }} {{ plural .Event.DaysLeft \"день\" \"дня\" \"дней\" }}."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Renew",
+                    "ru": "Продлить"
+                  },
+                  "action": "subscriptions.renew",
+                  "params": {
+                    "id": "{{ .Event.ID }}"
+                  }
+                }
+              ]
+            ]
+          },
+          "sub_paid": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "**Payment received**\n\nSubscription “{{ .Event.Label }}” is valid until {{ .Event.ExpiresAt | date }}.\n\nLink for the app:\n`{{ .Event.URL }}`",
+                  "ru": "**Оплата прошла**\n\nПодписка «{{ .Event.Label }}» действует до {{ .Event.ExpiresAt | date }}.\n\nСсылка для приложения:\n`{{ .Event.URL }}`"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Copy link",
+                    "ru": "Скопировать ссылку"
+                  },
+                  "copy_text": "{{ .Event.URL }}"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "My subscriptions",
+                    "ru": "Мои подписки"
+                  },
+                  "goto": "my_subs"
+                }
+              ]
+            ]
+          },
+          "sub_rename": {
+            "data": {
+              "sub": "subscriptions.get"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "Send a new name for “{{ .sub.Label }}”. Up to 32 characters.",
+                  "ru": "Отправьте новое название для «{{ .sub.Label }}». До 32 символов."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Cancel",
+                    "ru": "Отмена"
+                  },
+                  "back": true
+                }
+              ]
+            ],
+            "input": {
+              "action": "subscriptions.rename",
+              "param": "label"
+            }
+          },
+          "sub_revoke": {
+            "data": {
+              "sub": "subscriptions.get"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "Issue a new link for “{{ .sub.Label }}”?\n\nThe old one will stop working and devices will need to reconnect.",
+                  "ru": "Выпустить новую ссылку для «{{ .sub.Label }}»?\n\nСтарая перестанет работать, устройства нужно будет подключить заново."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Issue",
+                    "ru": "Выпустить"
+                  },
+                  "style": "danger",
+                  "action": "subscriptions.revoke",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Cancel",
+                    "ru": "Отмена"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "support",
+      "package": "github.com/tori43-hash/tors/modules/support",
+      "trust": "official",
+      "name": "Поддержка",
+      "summary": "Контакт поддержки для экранов бота.",
+      "category": "feature",
+      "requires": [
+        "ui"
+      ],
+      "config": [
+        {
+          "key": "contact",
+          "title": "Контакт",
+          "hint": "Username в Telegram или ссылка",
+          "type": "text",
+          "placeholder": "@support",
+          "required": true
+        }
+      ],
+      "ui": {
+        "data": {
+          "support.info": {
+            "title": "Поддержка",
+            "fields": [
+              {
+                "name": "Contact",
+                "type": "string",
+                "title": "Контакт",
+                "sample": "@support"
+              },
+              {
+                "name": "URL",
+                "type": "url",
+                "title": "Ссылка",
+                "sample": "https://t.me/support"
+              }
+            ]
+          }
+        },
+        "screens": {
+          "support": {
+            "data": {
+              "support": "support.info"
+            },
+            "blocks": [
+              {
+                "text": {
+                  "en": "**Support**\n\nWrite to us: {{ .support.Contact }}",
+                  "ru": "**Поддержка**\n\nНапишите нам: {{ .support.Contact }}"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Write",
+                    "ru": "Написать"
+                  },
+                  "url": "{{ .support.URL }}"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "telegram",
+      "package": "github.com/tori43-hash/tors/modules/telegram",
+      "trust": "official",
+      "name": "Telegram-бот",
+      "summary": "Показывает экраны из холста, обрабатывает нажатия, ввод и события.",
+      "category": "core",
+      "hidden": true,
+      "requires": [
+        "users",
+        "ui",
+        "kv"
+      ],
+      "config": [
+        {
+          "key": "token",
+          "title": "Токен бота",
+          "hint": "Выдаёт @BotFather. Лучше хранить в переменной окружения",
+          "type": "secret",
+          "default": "{env.BOT_TOKEN}",
+          "required": true
+        },
+        {
+          "key": "transport",
+          "title": "Получение обновлений",
+          "type": "select",
+          "default": "polling",
+          "options": [
+            {
+              "value": "polling",
+              "title": "Опрос (проще, для одного сервера)"
+            },
+            {
+              "value": "webhook",
+              "title": "Вебхук (нужен публичный адрес)",
+              "requires": [
+                "http"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "trial",
+      "package": "github.com/tori43-hash/tors/modules/trial",
+      "trust": "official",
+      "name": "Пробный период",
+      "summary": "Бесплатная подписка на несколько дней, один раз на человека.",
+      "category": "feature",
+      "requires": [
+        "subscriptions",
+        "users",
+        "ui"
+      ],
+      "config": [
+        {
+          "key": "days",
+          "title": "Дней",
+          "type": "number",
+          "default": 3,
+          "required": true
+        },
+        {
+          "key": "traffic_gb",
+          "title": "Трафик, ГБ",
+          "hint": "0 — без ограничений",
+          "type": "number",
+          "default": 10
+        },
+        {
+          "key": "devices",
+          "title": "Устройств",
+          "hint": "0 — без ограничений",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "panel",
+          "title": "Панель",
+          "type": "select",
+          "options_from": "panels"
+        }
+      ],
+      "ui": {
+        "actions": {
+          "trial.start": {
+            "title": "Начать пробный период",
+            "label": {
+              "en": "Try for free",
+              "ru": "Попробовать бесплатно"
+            },
+            "outcomes": [
+              {
+                "name": "ok",
+                "title": "Выдан",
+                "default": "trial_ok",
+                "params": [
+                  "id"
+                ]
+              },
+              {
+                "name": "used",
+                "title": "Уже был",
+                "default": "trial_used"
+              }
+            ]
+          }
+        },
+        "conditions": {
+          "trial.available": {
+            "title": "Пробный период ещё не брали",
+            "sample": true
+          }
+        },
+        "screens": {
+          "trial_ok": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "**Your free trial is on**\n\nThe subscription is in “My subscriptions”.",
+                  "ru": "**Пробный период включён**\n\nПодписка уже в разделе «Мои подписки»."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Open subscription",
+                    "ru": "Открыть подписку"
+                  },
+                  "goto": "sub",
+                  "params": {
+                    "id": "{{ .Params.id }}"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Home",
+                    "ru": "В начало"
+                  },
+                  "home": true
+                }
+              ]
+            ]
+          },
+          "trial_used": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "The free trial has already been used.",
+                  "ru": "Пробный период уже был использован."
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Choose a plan",
+                    "ru": "Выбрать тариф"
+                  },
+                  "goto": "plans"
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "ui",
+      "package": "github.com/tori43-hash/tors/modules/ui",
+      "trust": "official",
+      "name": "Экраны",
+      "summary": "Связывает экраны бота с данными и действиями модулей.",
+      "category": "core",
+      "hidden": true,
+      "requires": [
+        "jobs"
+      ]
+    },
+    {
+      "id": "users",
+      "package": "github.com/tori43-hash/tors/modules/users",
+      "trust": "official",
+      "name": "Пользователи",
+      "summary": "Люди, которые пишут боту: имя, язык, первый визит.",
+      "category": "core",
+      "hidden": true,
+      "requires": [
+        "database",
+        "ui"
+      ],
+      "config": [
+        {
+          "key": "languages",
+          "title": "Языки бота",
+          "hint": "Первый — язык по умолчанию",
+          "type": "strings",
+          "default": [
+            "ru",
+            "en"
+          ]
+        }
+      ],
+      "ui": {
+        "actions": {
+          "users.set_language": {
+            "title": "Сменить язык",
+            "params": [
+              "lang"
+            ],
+            "outcomes": [
+              {
+                "name": "ok",
+                "title": "Готово",
+                "default": "language"
+              }
+            ]
+          }
+        },
+        "screens": {
+          "language": {
+            "blocks": [
+              {
+                "text": {
+                  "en": "Choose language",
+                  "ru": "Выберите язык"
+                }
+              }
+            ],
+            "keyboard": [
+              [
+                {
+                  "text": {
+                    "en": "Русский",
+                    "ru": "Русский"
+                  },
+                  "action": "users.set_language",
+                  "params": {
+                    "lang": "ru"
+                  }
+                },
+                {
+                  "text": {
+                    "en": "English",
+                    "ru": "English"
+                  },
+                  "action": "users.set_language",
+                  "params": {
+                    "lang": "en"
+                  }
+                }
+              ],
+              [
+                {
+                  "text": {
+                    "en": "Back",
+                    "ru": "Назад"
+                  },
+                  "back": true
+                }
+              ]
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/tori43-hash/tors"
+	"github.com/tori43-hash/tors/market"
 	"github.com/tori43-hash/tors/modules/database"
 )
 
@@ -25,6 +26,14 @@ type Store struct {
 
 func (Store) TorsModule() tors.ModuleInfo {
 	return tors.ModuleInfo{ID: "kv.stores.postgres", New: func() tors.Module { return new(Store) }}
+}
+
+func (Store) Market() market.Info {
+	return market.Info{
+		Name: "Хранение в PostgreSQL", Summary: "Состояние диалогов переживает перезапуск.", Category: "core", Hidden: true, Default: true,
+		Requires: []string{"database"},
+		Host:     &market.Host{App: "kv", Field: "store", Key: "store"},
+	}
 }
 
 func (s *Store) Provision(ctx tors.Context) error {

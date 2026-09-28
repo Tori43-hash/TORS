@@ -62,6 +62,7 @@ func (App) Market() market.Info {
 		Summary:  "Люди, которые пишут боту: имя, язык, первый визит.",
 		Category: "core",
 		Hidden:   true,
+		Requires: []string{"database", "ui"},
 		Config: []market.Field{{
 			Key: "languages", Title: "Языки бота", Type: "strings", Default: []string{"ru", "en"},
 			Hint: "Первый — язык по умолчанию",

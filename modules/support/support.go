@@ -35,6 +35,7 @@ func (*App) Market() market.Info {
 		Name:     "Поддержка",
 		Summary:  "Контакт поддержки для экранов бота.",
 		Category: "feature",
+		Requires: []string{"ui"},
 		Config: []market.Field{
 			{Key: "contact", Title: "Контакт", Type: "text", Placeholder: "@support", Required: true,
 				Hint: "Username в Telegram или ссылка"},

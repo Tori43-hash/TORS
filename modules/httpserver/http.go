@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tori43-hash/tors"
+	"github.com/tori43-hash/tors/market"
 )
 
 func init() { tors.RegisterModule(new(App)) }
@@ -34,6 +35,16 @@ type App struct {
 
 func (*App) TorsModule() tors.ModuleInfo {
 	return tors.ModuleInfo{ID: "http", New: func() tors.Module { return new(App) }}
+}
+
+func (*App) Market() market.Info {
+	return market.Info{
+		Name: "HTTP-сервер", Summary: "Принимает вебхуки Telegram и отвечает на проверки здоровья.", Category: "core", Hidden: true,
+		Config: []market.Field{
+			{Key: "listen", Title: "Адрес", Type: "text", Default: ":8080"},
+			{Key: "public_url", Title: "Публичный адрес", Type: "text", Placeholder: "https://bot.example.com", Required: true},
+		},
+	}
 }
 
 func (a *App) Provision(ctx tors.Context) error {

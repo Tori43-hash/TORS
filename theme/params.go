@@ -36,6 +36,12 @@ func IncomingParams(t *Theme, m *Manifest) map[string][]string {
 			}
 		})
 	}
+	// An outcome's own params reach its screen however the action is started.
+	for _, name := range sortedKeys(m.Actions) {
+		for target, keys := range outcomeTargets(t, m, name) {
+			add(target, keys...)
+		}
+	}
 	// Input screens forward what they received; a few passes cover chains.
 	for range 3 {
 		for _, id := range sortedKeys(t.Screens) {
@@ -56,6 +62,23 @@ func IncomingParams(t *Theme, m *Manifest) map[string][]string {
 	out := make(map[string][]string, len(in))
 	for id, keys := range in {
 		out[id] = slices.Sorted(maps.Keys(keys))
+	}
+	return out
+}
+
+// outcomeTargets maps the default and routed screens of an action's outcomes
+// to the params those outcomes pass.
+func outcomeTargets(t *Theme, m *Manifest, action string) map[string][]string {
+	out := map[string][]string{}
+	for _, o := range m.Actions[action].Outcomes {
+		if len(o.Params) == 0 {
+			continue
+		}
+		for _, target := range []string{o.Default, t.Routes[action][o.Name]} {
+			if target != "" {
+				out[target] = append(out[target], o.Params...)
+			}
+		}
 	}
 	return out
 }

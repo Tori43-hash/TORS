@@ -2,28 +2,37 @@ package theme_test
 
 import (
 	"encoding/json/v2"
+	"os"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/tori43-hash/tors/theme"
-	"github.com/tori43-hash/tors/theme/standard"
 )
 
+// testdata holds a large sample bot: its theme and the manifest it was made for.
 func load(t *testing.T) (*theme.Theme, *theme.Manifest) {
 	t.Helper()
-	th, err := theme.Parse(standard.Theme)
+	tb, err := os.ReadFile("testdata/theme.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mb, err := os.ReadFile("testdata/manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	th, err := theme.Parse(tb)
 	if err != nil {
 		t.Fatalf("parse theme: %v", err)
 	}
-	m, err := theme.ParseManifest(standard.Manifest)
+	m, err := theme.ParseManifest(mb)
 	if err != nil {
 		t.Fatalf("parse manifest: %v", err)
 	}
 	return th, m
 }
 
-func TestStandardThemeIsValid(t *testing.T) {
+func TestSampleThemeIsValid(t *testing.T) {
 	th, m := load(t)
 	for _, is := range theme.Validate(th, m) {
 		t.Errorf("%s %s %s: %s", is.Level, is.Screen, is.Ref, is.Message)

@@ -64,6 +64,7 @@ func (*App) Market() market.Info {
 		Name:     "Тарифы",
 		Summary:  "Список тарифов: срок, трафик, устройства и цена в звёздах.",
 		Category: "sales",
+		Requires: []string{"ui"},
 		Config: []market.Field{{
 			Key: "plans", Title: "Тарифы", Type: "list", Required: true,
 			Default: []any{

@@ -35,6 +35,7 @@ func (*Gateway) Market() market.Info {
 		Name:     "Telegram Stars",
 		Summary:  "Оплата звёздами прямо в Telegram, без платёжного провайдера.",
 		Category: "payment",
+		Default:  true,
 		Requires: []string{"billing", "telegram"},
 		Host:     &market.Host{App: "billing", Field: "gateway", Key: "gateway"},
 	}

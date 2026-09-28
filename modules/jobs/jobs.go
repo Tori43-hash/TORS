@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/tori43-hash/tors"
+	"github.com/tori43-hash/tors/market"
 	"github.com/tori43-hash/tors/modules/database"
 )
 
@@ -49,6 +50,13 @@ type periodic struct {
 
 func (*App) TorsModule() tors.ModuleInfo {
 	return tors.ModuleInfo{ID: "jobs", New: func() tors.Module { return new(App) }}
+}
+
+func (*App) Market() market.Info {
+	return market.Info{
+		Name: "Фоновые задачи", Summary: "Очередь задач и события, которые не теряются при перезапуске.",
+		Category: "core", Hidden: true, Requires: []string{"database"},
+	}
 }
 
 func (a *App) Provision(ctx tors.Context) error {

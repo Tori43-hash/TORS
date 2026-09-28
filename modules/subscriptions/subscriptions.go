@@ -121,7 +121,7 @@ func (*App) Market() market.Info {
 		Name:     "Подписки",
 		Summary:  "Подписки пользователей: выдача после оплаты, продление, ссылка, напоминания.",
 		Category: "sales",
-		Requires: []string{"billing", "catalog", "panels"},
+		Requires: []string{"billing", "catalog", "panels", "users", "database", "jobs", "ui"},
 		Needs:    []string{"panels.providers"},
 		Config: []market.Field{{
 			Key: "remind_days", Title: "Напоминать за, дней", Type: "number", Default: 3,

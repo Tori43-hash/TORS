@@ -1,6 +1,6 @@
 //go:build js && wasm
 
-// Command ui-wasm exposes the theme package to the screen editor: the editor
+// Command ui-wasm exposes the theme package to the bot builder: the builder
 // validates and renders screens with exactly the code the bot runs.
 package main
 
@@ -10,7 +10,6 @@ import (
 	"syscall/js"
 
 	"github.com/tori43-hash/tors/theme"
-	"github.com/tori43-hash/tors/theme/standard"
 )
 
 var (
@@ -88,9 +87,6 @@ func main() {
 		"load":   fn(func(a []js.Value) any { return load(a[0].String(), a[1].String()) }),
 		"render": fn(func(a []js.Value) any { return render(a[0].String(), a[1].String()) }),
 		"format": fn(func(a []js.Value) any { return format(a[0].String()) }),
-		"standard": fn(func([]js.Value) any {
-			return result(map[string]jsontext.Value{"theme": standard.Theme, "manifest": standard.Manifest})
-		}),
 	}))
 	if cb := js.Global().Get("onTorsThemeReady"); cb.Type() == js.TypeFunction {
 		cb.Invoke()

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tori43-hash/tors"
+	"github.com/tori43-hash/tors/market"
 )
 
 func init() { tors.RegisterModule(App{}) }
@@ -30,6 +31,13 @@ type App struct {
 
 func (App) TorsModule() tors.ModuleInfo {
 	return tors.ModuleInfo{ID: "kv", New: func() tors.Module { return new(App) }}
+}
+
+func (App) Market() market.Info {
+	return market.Info{
+		Name: "Состояние диалогов", Summary: "Кнопки и ввод текста между сообщениями.",
+		Category: "core", Hidden: true, Needs: []string{"kv.stores"},
+	}
 }
 
 func (a *App) Provision(ctx tors.Context) error {

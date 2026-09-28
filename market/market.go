@@ -1,6 +1,9 @@
 // Package market describes modules for the bot builder and the module market:
-// what a module is called, what it needs and how it is configured.
+// what a module is called, what it needs, how it is configured and what it
+// offers to screens.
 package market
+
+import "github.com/tori43-hash/tors/theme"
 
 // Info is implemented by modules through Describer.
 type Info struct {
@@ -8,7 +11,9 @@ type Info struct {
 	Summary  string `json:"summary"`
 	Category string `json:"category"` // core | panel | payment | feature
 	// Hidden modules are infrastructure: the builder adds them when needed.
-	Hidden   bool     `json:"hidden,omitzero"`
+	Hidden bool `json:"hidden,omitzero"`
+	// Default modules are picked automatically when their namespace is needed.
+	Default  bool     `json:"default,omitzero"`
 	Requires []string `json:"requires,omitzero"`
 	// Needs lists namespaces the bot needs at least one module from, such as
 	// "billing.gateways" for a way to pay.
@@ -43,13 +48,52 @@ type Field struct {
 	Item        []Field `json:"item,omitzero"` // fields of each item of a list
 }
 
-// Option of a select field.
+// Option of a select field. Requires lists modules the option needs, such as
+// the http app for webhooks.
 type Option struct {
-	Value string `json:"value"`
-	Title string `json:"title"`
+	Value    string   `json:"value"`
+	Title    string   `json:"title"`
+	Requires []string `json:"requires,omitzero"`
 }
 
 // Describer is implemented by modules that appear in the builder.
 type Describer interface {
 	Market() Info
+}
+
+// Trust levels of modules in the market.
+const (
+	Official = "official" // maintained in the TORS repository
+	Verified = "verified" // third-party, code reviewed at a pinned version
+)
+
+// Module is the descriptor of one module: everything the builder needs to
+// offer, configure and build it without its code.
+type Module struct {
+	ID      string `json:"id"`
+	Package string `json:"package"`
+	// Version is the Go module version to build with; empty for official
+	// modules, which come with the core.
+	Version string `json:"version,omitzero"`
+	Trust   string `json:"trust,omitzero"`
+	Info    `json:",inline"`
+	UI      *UI `json:"ui,omitzero"`
+}
+
+// UI is what a module offers to screens, and its starter screens.
+type UI struct {
+	Data       map[string]theme.DataSource `json:"data,omitzero"`
+	Actions    map[string]theme.Action     `json:"actions,omitzero"`
+	Conditions map[string]theme.Condition  `json:"conditions,omitzero"`
+	Events     map[string]theme.Event      `json:"events,omitzero"`
+	Screens    map[string]*theme.Screen    `json:"screens,omitzero"`
+}
+
+// Pack is a file of descriptors: the market index, or a tors-module.json a
+// module author publishes.
+type Pack struct {
+	Version int `json:"version"`
+	// Core is the core version official modules come with.
+	Core    string   `json:"core,omitzero"`
+	Modules []Module `json:"modules"`
 }

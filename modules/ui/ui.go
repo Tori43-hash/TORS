@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/tori43-hash/tors"
+	"github.com/tori43-hash/tors/market"
 	"github.com/tori43-hash/tors/modules/jobs"
 	"github.com/tori43-hash/tors/theme"
 )
@@ -94,6 +95,13 @@ type App struct {
 
 func (*App) TorsModule() tors.ModuleInfo {
 	return tors.ModuleInfo{ID: "ui", New: func() tors.Module { return new(App) }}
+}
+
+func (*App) Market() market.Info {
+	return market.Info{
+		Name: "Экраны", Summary: "Связывает экраны бота с данными и действиями модулей.",
+		Category: "core", Hidden: true, Requires: []string{"jobs"},
+	}
 }
 
 func (a *App) Provision(ctx tors.Context) error {

@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tori43-hash/tors"
+	"github.com/tori43-hash/tors/market"
 )
 
 func init() { tors.RegisterModule(App{}) }
@@ -33,6 +34,13 @@ type App struct {
 
 func (App) TorsModule() tors.ModuleInfo {
 	return tors.ModuleInfo{ID: "database", New: func() tors.Module { return new(App) }}
+}
+
+func (App) Market() market.Info {
+	return market.Info{
+		Name: "PostgreSQL", Summary: "База данных бота.", Category: "core", Hidden: true,
+		Config: []market.Field{{Key: "dsn", Title: "Строка подключения", Type: "secret", Default: "{env.DATABASE_URL}", Required: true}},
+	}
 }
 
 func (a *App) Provision(ctx tors.Context) error {

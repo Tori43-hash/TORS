@@ -41,7 +41,7 @@ func (*App) Market() market.Info {
 		Name:     "Пробный период",
 		Summary:  "Бесплатная подписка на несколько дней, один раз на человека.",
 		Category: "feature",
-		Requires: []string{"subscriptions"},
+		Requires: []string{"subscriptions", "users", "ui"},
 		Config: []market.Field{
 			{Key: "days", Title: "Дней", Type: "number", Default: 3, Required: true},
 			{Key: "traffic_gb", Title: "Трафик, ГБ", Type: "number", Default: 10, Hint: "0 — без ограничений"},

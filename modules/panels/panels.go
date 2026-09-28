@@ -65,6 +65,7 @@ func (*App) TorsModule() tors.ModuleInfo {
 func (*App) Market() market.Info {
 	return market.Info{
 		Name: "Панели", Summary: "Панели, на которых создаются подписки.", Category: "core", Hidden: true,
+		Needs: []string{"panels.providers"},
 	}
 }
 
