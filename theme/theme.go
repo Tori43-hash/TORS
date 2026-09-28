@@ -217,3 +217,12 @@ func Parse(b []byte) (*Theme, error) {
 	}
 	return &t, nil
 }
+
+// ParseScreens decodes a map of screens (a module's starter screens).
+func ParseScreens(b []byte) (map[string]*Screen, error) {
+	var s map[string]*Screen
+	if err := json.Unmarshal(b, &s, json.RejectUnknownMembers(true)); err != nil {
+		return nil, err
+	}
+	return s, nil
+}

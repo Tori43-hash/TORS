@@ -9,8 +9,8 @@ import (
 	"encoding/json/v2"
 	"syscall/js"
 
-	"github.com/tori43-hash/tors/modules/telegram/theme"
-	"github.com/tori43-hash/tors/modules/telegram/theme/standard"
+	"github.com/tori43-hash/tors/theme"
+	"github.com/tori43-hash/tors/theme/standard"
 )
 
 var (

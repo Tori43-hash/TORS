@@ -1,0 +1,12 @@
+{
+  "language": {
+    "blocks": [{ "text": { "ru": "Выберите язык", "en": "Choose language" } }],
+    "keyboard": [
+      [
+        { "text": { "ru": "Русский", "en": "Русский" }, "action": "users.set_language", "params": { "lang": "ru" } },
+        { "text": { "ru": "English", "en": "English" }, "action": "users.set_language", "params": { "lang": "en" } }
+      ],
+      [{ "text": { "ru": "Назад", "en": "Back" }, "back": true }]
+    ]
+  }
+}

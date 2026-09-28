@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tori43-hash/tors/modules/telegram/theme"
-	"github.com/tori43-hash/tors/modules/telegram/theme/standard"
+	"github.com/tori43-hash/tors/theme"
+	"github.com/tori43-hash/tors/theme/standard"
 )
 
 func load(t *testing.T) (*theme.Theme, *theme.Manifest) {
